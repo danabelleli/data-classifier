@@ -1,183 +1,127 @@
 # Sensitive Data Classifier
 
-Upload a CSV file and see, for each column, whether it holds one of six kinds of sensitive data, with a plain-English reason for every decision.
+A web app that reads a CSV file and decides, for each column, whether it contains one of six sensitive data classes, and explains why.
 
-The six classes are National ID (US Social Security Number), City, Person Name, Phone Number, Email Address and Date of Birth. A column that holds none of them is **Not classified**.
+**Live app:** https://data-classifier-kappa.vercel.app
 
----
+The six classes: **National ID (US SSN)** · **City** · **Person Name** · **Phone Number** · **Email Address** · **Date of Birth**. Any other column is **Not classified**.
 
-## 1. How to use it
+Every decision is made by explainable rules: regular expressions, validation, and official reference lists. No machine learning and no LLM calls.
 
-**Live app:** https://data-classifier-kappa.vercel.app/
+## How to use
 
+**Classifier tab**
 1. Click **Upload CSV** and choose a file.
-2. The left list shows every column. Classified columns have a blue tag with their class.
-3. Click a column to see the match percentage, **why** it was (or was not) classified, and its values with the result for each one.
-4. Click **Export results** to download `<file name>_results.csv` (one row per column: `column`, `data_class`, `match_percent`, `reason`).
+2. The column list shows each column's class (blue tag) or "Not classified".
+3. Click a column to see the match %, **why** (values, header, other columns), and the column's values with their results, 10 per page.
+4. **Export results** downloads a CSV with each column's class, match % and reason.
 
-### Test results page (precision and recall)
+**Test results tab** (measures quality)
+1. Upload a test CSV in the Classifier tab.
+2. In Test results, upload an answers CSV with the correct class for each column:
+   `column,correct_class` (for example `full_name,Person Name` or `title,Not classified`)
+3. Click **Run tests** to see true positives, false positives, false negatives, precision and recall per class, plus every mistake with the app's reason.
 
-The **Test results** tab measures how well the rules work on a file whose correct answers you know.
+**Limits:** uploads up to about 4.5 MB (Vercel); the first 10,000 rows are analyzed. The value list shows up to 1,000 values per column (fewer for very wide files, to stay under Vercel's response limit); the label always shows how many are shown out of the total. Uploaded files are processed in memory and never saved.
 
-1. **Test CSV:** the file to test.
-2. **Answers CSV:** the correct class for each column of the test CSV, written by a person:
-   ```
-   column,correct_class
-   full_name,Person Name
-   title,Not classified
-   ```
-   Class names must be exactly: National ID (SSN), City, Person Name, Phone Number, Email Address, Date of Birth, Not classified. Spaces around a name are ignored; capitalization must match.
-3. Click **Run tests**. The test CSV is classified with exactly the same code as the Classifier page, then each column is compared with its correct answer. Nothing is stored.
+**Run locally (optional):** `npm install`, then `python3 dev_server.py` and `npm run dev` in two terminals, and open http://localhost:5173.
 
-If the files don't line up (a column with no answer, an answer for a column that isn't in the file, a column listed twice, or an unknown class name), the test does not run and every problem is listed, so the numbers are never based on a partial comparison.
+## Approach
 
-For each of the 6 classes the page counts:
-- **True positive (TP):** the app said this class and the correct answer is this class.
-- **False positive (FP):** the app said this class, but the correct answer is something else.
-- **False negative (FN):** the correct answer is this class, but the app said something else.
-- **True negative (TN):** neither is this class.
+- **Values are the main evidence.** Each non-empty value is checked against each class. A class needs **90%** of values to match (10+ values) or **80%** (1–9 values).
+- **Supporting evidence lowers the bar to 50%, but never replaces values.** It always comes from the column itself: a header keyword, or a related column (email, city/state).
+- **Ambiguous values need supporting evidence.** Raw digits, single words, city names and dates can look like many things, so they only count with a matching header or related column.
+- **Every decision has a reason** with counts, a percentage, and the evidence used.
 
-A column given the wrong class (app says City, correct answer is Person Name) is an FP for City **and** an FN for Person Name.
-**Precision = TP ÷ (TP + FP)**: of the columns the app labeled with this class, how many were right. **Recall = TP ÷ (TP + FN)**: of the columns that really are this class, how many the app found. When the denominator is 0, the page shows "—".
-The **Mistakes** list shows every wrong column with the app's reason, 10 per page.
+**Global rules**
+- Placeholders (`N/A`, `NA`, `null`, `none`, `unknown`, `-`) and blanks are treated as empty.
+- Headers are split into words (`employee_ssn`, `employeeSSN` → `employee`, `ssn`) before matching keywords.
+- If two classes pass: the highest % wins; within 5 points, the one with a header match wins; then SSN > Phone > Email > Date of Birth > Person Name > City.
 
-**Limits:** Vercel accepts uploads up to about **4.5 MB** per request. Only the first **10,000 rows** are analyzed. The UI lists the first 20 values of each column.
-
-### Run it locally
-
-You need Python 3.10+ and Node.js 18+.
-
-```bash
-npm install
-python3 dev_server.py     # terminal 1: the Python API on http://localhost:8000
-npm run dev               # terminal 2: the web app on http://localhost:5173
-```
-
-`dev_server.py` serves both API endpoints (`/api/classify` and `/api/evaluate`) and is only used locally. Vite forwards `/api` requests to it, so open http://localhost:5173 and upload a file. If you have the Vercel CLI, `vercel dev` runs both together the same way as in production.
-
-### Deploy
-
-Push the repo to GitHub and import it in Vercel (framework: Vite). The React app is served as static files from `dist/`. Each file in `api/` (`classify.py`, `evaluate.py`) becomes a Python serverless function. `vercel.json` makes sure the `classifier/` code and the `data/` reference lists are bundled with them. The Python code uses only the standard library, so there is no `requirements.txt`.
-
----
-
-## 2. What the app does, and the approach
-
-Every decision is made by rules that a person can read and check: regular expressions, validation rules and official reference lists. There is no machine learning and no AI model. The app works on any CSV without code changes, because it judges a column by its **contents**, not by its name.
-
-- **Values are the main evidence.** Each non-empty value is tested against the rule for each class. A class must match a large share of values: **80%** for columns with 3–9 values, **90%** for 10 or more. Columns with fewer than 3 values are not classified (not enough data).
-- **Supporting evidence lowers the bar to 50%, but never replaces values.** It comes from the column's **header** (for example `ssn`, `email`, `dob`) or from **related columns** in the same row: a city that forms a real city/state pair with a state column, or a name that appears inside the email address in that row.
-- **Conflicts.** If more than one class passes, the highest percentage wins. If two are within 5 points, the one whose header matches wins. If still tied: SSN > Phone > Email > Date of Birth > Person Name > City. The reason names the runner-up.
-- **Every result has a reason**, including Not classified columns. It gives the matched count, the non-empty count, the percentage, and which supporting evidence was used (or that none was).
-
-Values are cleaned first: spaces are trimmed, and `N/A`, `NA`, `null`, `none`, `unknown`, `-` and blanks count as empty. Percentages use non-empty values only. Every value is read as text, so leading zeros (for example in SSNs) are kept.
-
-Some classes depend on others, so the app runs two passes. **Pass 1** looks at each column alone: Email, SSN, Phone, state columns, and dates with a birth keyword in the header. **Pass 2** uses those results: City (paired with the state column), Person Name (compared with the email column), then birth dates found by position.
-
-### Code layout
-
-| Path | What it does |
-|---|---|
-| `api/classify.py` | Vercel function for the Classifier page: receives the upload, returns JSON |
-| `api/evaluate.py` | Vercel function for the Test results page: receives the test CSV and answers CSV, returns the counts |
-| `dev_server.py` | Local only: one server for both API endpoints |
-| `classifier/cleaning.py` | Reads the CSV, trims values, handles placeholders like `N/A` |
-| `classifier/headers.py` | Splits headers into words (`employeeSSN` → `employee`, `ssn`) and matches keywords |
-| `classifier/rules_*.py` | One file per class with its value rule and header keywords |
-| `classifier/decide.py` | Thresholds, the two passes, conflict resolution, reasons |
-| `classifier/evaluate.py` | Test results: checks the answers CSV, compares, counts TP/FP/FN/TN, precision and recall |
-| `classifier/upload.py` | Reads uploaded files from a request and sends JSON (shared by both endpoints) |
-| `data/` | Official reference lists ([sources](data/README.md)) |
-| `scripts/build_reference_data.py` | Rebuilds `data/` from the raw official downloads |
-| `src/` | React + Vite + Tailwind web app |
-| `tests/files/` | Test CSV files |
-
----
-
-## 3. The rules for each class
+## The rules for each class
 
 ### Email Address
-The whole value must look like an email: `name@domain.tld` (letters, digits and `. _ % + -` before the `@`, a domain, and a 2+ letter ending).
-Header keywords: `email`, `e-mail`, `mail`.
+- The whole value must look like an email: `name@domain.tld`.
+- Header keywords: `email`, `e-mail`, `mail`.
 
-### National ID (US Social Security Number)
-Nine digits in a 3-2-4 pattern, written with dashes, spaces or no separators (`123-45-6789`, `123 45 6789`, `123456789`). They must also pass the SSA's rules: never starting with `000`, `666` or `900`–`999`, never `00` in the middle, never `0000` at the end. The reason says how many values used each separator style.
-Header keywords: `ssn`, `social`, `social_security`, `national_id`. A header like `employee_id` does **not** block SSN.
+### National ID (US SSN)
+- 9 digits in a 3-2-4 pattern: `123-45-6789`, `123 45 6789`, `123456789`.
+- Must pass SSA rules: never starts with `000`, `666` or `900`–`999`; never `00` in the middle; never `0000` at the end.
+- Formatted values (dashes or spaces) count on their own.
+- Raw 9 digits count only with an SSN header.
+- Header keywords: `ssn`, `social`, `social_security`, `national_id`, `tax_id`.
 
-### Phone Number (US only)
-A US phone number in any common format, such as `(212) 555-0101`, `212-555-0101`, `212.555.0101`, `2125550101`, `+1 212 555 0101`, `1-212-555-0101`. The area code and exchange cannot start with 0 or 1. The area code must be a real, in-service US area code from the NANPA list (toll-free codes included). The reason names the most common area code and its region ("212 = New York").
-Header keywords: `phone`, `mobile`, `cell`, `tel`, `telephone`, `contact_number`.
+### Phone Number
+- **US:** any common format (`(212) 555-0101`, `212-555-0101`, `212.555.0101`, `+1 212 555 0101`, `2125550101`).
+  - Area code and exchange can't start with 0 or 1.
+  - The area code must be on the official NANPA list (toll-free included).
+- **International:** starts with `+`, has a country code on the official ITU list, and 8–15 digits in total. `+1` numbers follow the US rules.
+- Formatted values count on their own. Raw digits count only with a phone header.
+- Header keywords: `phone`, `mobile`, `cell`, `tel`, `telephone`, `contact_number`.
 
 ### Date of Birth
-**Step 1: is it a date?** A value is a valid date if it fits one of 10 formats (`1990-03-14`, `1990/03/14`, `03/14/1990`, `14/03/1990`, `03-14-1990`, `03/14/90`, `14/03/90`, `March 14, 1990`, `Mar 14, 1990`, `14-Mar-1990`), is a real calendar date (no Feb 30), is not in the future, and is not more than 120 years ago. Two-digit years that would land in the future go to the 1900s (`45` → 1945).
+- **Is it a date?** Fits one of 10 formats (`1990-03-14`, `03/14/1990`, `14/03/1990`, `03/14/90`, `March 14, 1990`, …), is a real calendar date, not in the future, and not more than 120 years ago. Two-digit years that would land in the future go to the 1900s (`45` → 1945).
+- **Is it a birth date?** One of:
+  - the header has a birth keyword (`dob`, `birth`, `birthday`, `birth_date`, `date_of_birth`, `bday`, `born`); any age 0–120, so children's data counts; or
+  - the file is about people (it has a Person Name or SSN column), has 2+ date columns, and this column holds the earliest date in 90%+ of rows, because a person is born before anything else happens to them.
 
-**Step 2: is it a birth date?** A date column is Date of Birth if either:
-- its header has a birth keyword (`dob`, `birth`, `birthday`, `birth_date`, `date_of_birth`, `bday`, `born`); any age 0–120 is accepted; **or**
-- the file is about people (it has a Person Name or SSN column), it has 2+ date columns, and this column holds the **earliest** date in at least 90% of rows, because a person is born before anything else happens to them.
-
-Otherwise the column is Not classified, and the reason says the values are dates but nothing shows they are birth dates.
-
-### City (US only)
-First the app checks for a **state column**: if the values are US state names or abbreviations, the column is Not classified (State is not one of the six classes). It is remembered for the city check.
-
-A value is a city if it is a US place with 10,000+ people in the Census list, **or** it forms a real (city, state) pair with the state column in the same row (any population, so small towns count). Names are normalized first: lowercase, `St.` → Saint, `Ft.` → Fort, `Mt.` → Mount, and a trailing `, TX` or `, Texas` is removed and used as the state.
-Supporting evidence: header keywords `city`, `town`, `municipality`, `locality`; or 50%+ of rows forming real city/state pairs.
+### City
+- A column of US state names or abbreviations is treated as a state column first (Not classified) and used for city/state pairs.
+- Values are cleaned first: lowercase, `St.` → Saint, `Ft.` → Fort, `Mt.` → Mount, `Austin, TX` → Austin.
+- A value is a city if it's a US place with 10,000+ people (Census), or a real city/state pair with the state column (any size).
+- **Needs supporting evidence:** a header keyword (`city`, `town`, `municipality`, `locality`) or 50%+ of rows forming real city/state pairs.
 
 ### Person Name
-Names are normalized first: titles (`Mr`, `Mrs`, `Ms`, `Dr`, `Prof`) and suffixes (`Jr`, `Sr`, `II`, `III`, `IV`) are removed, and `Carter, Emily` becomes `Emily Carter`. A name has 1–4 words made of letters, hyphens and apostrophes (`O'Brien`, `Smith-Jones`), plus optional initials like `J.`. No digits.
-- **Full name** (2–4 words): the first word must be in the SSA first-name list.
-- **First name only**: the word is in the SSA first-name list.
-- **Surname only**: the word is in the Census surname list. This only counts with support (a name header, names matching the email column, or another column with SSN, email, phone or date of birth), because the surname list contains ordinary words like Brown, White, Green and King.
+- Values are cleaned first: titles (`Dr.`, `Mr.`) and suffixes (`Jr.`) removed, `Carter, Emily` → `Emily Carter`. 1–4 words, letters, hyphens and apostrophes only.
+- **Full names:** the first word is in the SSA first-name list, **and** at least 50% of last words in the column are on the Census surname list (surnames shared by 1,000+ people).
+- **Single words** (a first name or surname alone) count only with a name header or the email match.
+- **Person evidence is required**, at least one of:
+  - the file has an SSN column, a birth-date column (by header), or a `gender`/`sex` column;
+  - the email match: a name word appears before the `@` of the email in the same row, in 50%+ of rows;
+  - a person-name header: `first_name`, `last_name`, `full_name`, `surname`, `given_name`, `fname`, `lname`.
 
-Supporting evidence: header keywords `name`, `full_name`, `first_name`, `last_name`, `surname`, `given_name`, `fname`, `lname` and anything like `employee_name`; or a word of the name appearing before the `@` of the email in the same row in 50%+ of rows.
+## Options I considered
 
----
+| Decision | Options | What I chose and why |
+|---|---|---|
+| Value threshold | 95% · 90% | **90%** (80% for small columns), plus cleaning placeholders, so real columns with a few messy values still pass. |
+| Role of the header | Block a class (e.g. `employee_id` blocks SSN) · Support only | **Support only.** Headers can be missing or misleading; values stay the main evidence. |
+| Person Name method | Name shape first · First-name list first | **First-name list.** A shape rule calls job titles like "Data Analyst" names. |
+| Area code check | Raw numbers only · Every value | **Every value.** Same validation for all formats, real area codes only. |
+| Date of Birth | Age cutoff (e.g. 16–100) · Header + relations between columns | **Header + relations.** An age cutoff would miss children's birth dates (healthcare data). |
+| Single-word names (`loyalty_tier`: Bronze, Silver, Gold) | Common names only · Count distinct values · Require support | **Require support** (name header or email match), the same rule as surnames. |
+| City false positive (`collection` of product lines) | Bigger cities only · Count distinct values · Require support | **Require support.** The other two options wouldn't separate product lines from real cities. |
+| Surname list size | 100+ · 1,000+ · 10,000+ people per surname | **1,000+:** 15% of the names but 77.3% of people. Drops word-like surnames (Table, Chair); 10,000+ would come too close to the 50% bar. |
+| 3-value minimum per column | Keep · Strong formats only · Require support · Remove | **Remove.** Ambiguous cases already need support; the minimum only caused false negatives on small files. |
+| Brand names in a name column (`merchant_name`: Kate Spade, Calvin Klein) | A hand-picked list of words before "name" · Person evidence | **Person evidence.** Brands and people can look identical inside the column; the difference is in the rest of the file. One-off cases are better handled with customer-specific tuning. |
+| `national_id` as an SSN keyword | Remove · Keep | **Keep.** Removing it risks missing real SSNs under that header; the cost is labeling some non-US IDs as SSN. |
 
-## 4. Other options considered
+## What works well
 
-| Option | Why it was not chosen |
-|---|---|
-| Machine learning or named-entity recognition (spaCy, Microsoft Presidio) | Decisions cannot be explained as a simple rule, and results change between model versions. The brief requires every decision to be explainable. |
-| An LLM call per column | Not explainable or repeatable, slow and costly, and it sends sensitive data to a third party. |
-| Classifying by header only | Headers are often missing, abbreviated or misleading (`field_12`). Values are the real evidence; the header only helps. |
-| pandas to read the file | It converts values to numbers (`012345678` loses its leading zero) and is a large dependency for a serverless function. Python's `csv` module keeps everything as text. |
-| `dateutil` or other "smart" date parsers | Too forgiving: they accept almost any string with digits. A fixed list of formats makes it clear what counts as a date. |
-| `phonenumbers` (libphonenumber) | Excellent for international numbers, but the scope is US only, and an official NANPA list is easier to explain and to check. |
-| Searching inside free text (emails in a notes column) | The app classifies what a column **is**. Finding sensitive data hidden in free text is a different problem (see Next steps). |
-| A newer Census Gazetteer (2020+) | Newer editions have no population column, which the 10,000-people rule needs. |
+Tested on 14 synthetic files (HR, e-commerce, travel, healthcare, data lake, contacts, transactions, product catalog, mortgage, global payroll, insurance claims, consumer app, bank), each with an answers file.
 
----
+- Clear patterns are found even with meaningless headers (`col_1`, `col_7`).
+- Mixed formats in one column (`(212) 555-0101` next to `+44 20 7946 0958`).
+- Messy data: placeholders, ALL CAPS, extra spaces, a few typos.
+- Traps handled: date-like codes (`2024-12-3100`), bank accounts with 9 digits, job titles, order IDs with a real area code, loyalty tiers, product lines named after cities, brand names, hire dates next to birth dates, tiny files.
+- Every decision can be traced to specific values.
 
-## 5. What works well and what does not
-
-**Works well**
-- Columns whose values clearly follow a pattern (email, SSN, US phone, dates), even with a meaningless header like `col_7`.
-- Mixed formats in one column (`(212) 555-0101` next to `2125550101`; `123-45-6789` next to `123456789`).
-- Traps such as a date with a 10-digit look (`2024-12-3100`), a bank account containing 9 digits in a row, a job title shaped like a name, or a city that is also a first name (Austin).
-- Clear explanations: every value shows its own result, so a surprising decision can be traced to specific rows.
-
-**Known limitations**
+## Known limitations
 
 | Class | Limitation |
 |---|---|
-| Email | Emails inside free text are not detected (by design). |
-| SSN | **False positives (accepted on purpose):** about 89% of random 9-digit numbers pass validation, so a 9-digit ID column without dashes can be classified as SSN. Missing a real SSN is worse than a false alarm. **False negatives:** SSNs saved as numbers that lost a leading zero (8 digits). |
-| Phone | US only; international numbers are not supported. The area code list goes out of date as new codes are added. Made-up area codes in test data do not match (by design). |
-| Date of Birth | **False positive:** a people file with `hire_date` and `termination_date` but no birth date column: `hire_date` is the earliest date, so it is called Date of Birth. **False negatives:** a single unlabeled birth date column with no other date to compare with; dates stored with a time (`1990-03-14 00:00:00`). Ambiguous dates like `03/04/1990` are read month-first when comparing columns. |
-| City | US only. Misspellings are missed. Small towns (under 10,000 people) are only found when the file has a state column or the value includes the state. Places that grew past 10,000 after the 2010 Census need a state too. The Census name for some places differs from common use ("Boise City" for Boise). |
-| State guard | A column that is mostly state names is treated as a state column first, so a first-name column full of "Virginia" and "Georgia" would be Not classified. |
-| Person Name | Rare or international first names may be missing from the SSA list. The SSA list includes some ordinary words that were given as names, so a column of word pairs can occasionally pass. Names overlap with cities (handled by conflict resolution). |
+| Email | Emails inside free text (a notes column) are not detected, by design. |
+| SSN | Non-US 9-digit IDs (Israeli, Dutch) under a `national_id` header can be labeled SSN. Raw 9-digit SSNs without an SSN header are missed. SSNs that lost a leading zero (8 digits) are missed. |
+| Phone | Raw digits without a phone header are missed. International numbers without `+` are missed. The area code and country code lists go out of date over time. |
+| Date of Birth | A people file with `hire_date` and `termination_date` but no birth date: `hire_date` is the earliest, so it can be called Date of Birth. A single unlabeled birth-date column is missed. Dates with a time (`1990-03-14 00:00:00`) are missed. |
+| City | A city column with a vague header and no state column is missed. Non-US cities are not supported. Misspellings are missed. |
+| Person Name | Real names with a generic header (`customer_name`) and no person evidence are missed. In a file that has SSN, birth-date or gender columns, a name-shaped non-person column (brands) can still pass. Rare first names may be missing from the SSA list. |
+| State guard | A first-name column full of "Virginia" or "Georgia" would be treated as a state column. |
 
----
+## Next steps with more time
 
-## 6. Next steps with more time
-
-- Automated tests in `tests/` for every rule and every trap, run on each change.
-- A confidence level next to each result (for example, a 100% match with header and related-column support versus a 91% match with nothing else).
-- Larger files: upload directly to storage instead of through the function, to go past 4.5 MB and 10,000 rows.
-- More countries: international phone numbers, other national IDs (Canadian SIN, UK National Insurance number), and world cities.
-- Recover SSNs that lost a leading zero when there is strong supporting evidence.
-- Accept dates with a midnight time (`1990-03-14 00:00:00`).
-- Use name frequency from the SSA data to give less weight to very rare names that are also ordinary words.
-- Report sensitive data inside free-text columns as a separate warning, without changing the column's class.
-- Let the user correct a decision in the UI and export the corrected result.
+- Separate classes for non-US national IDs, each with its own validation (for example the Israeli ID check digit).
+- Credit card numbers (PCI), with the Luhn checksum.
+- Matching misspelled cities.
+- Test results across many labeled files at once, to measure precision and recall at scale.
+- Customer-specific tuning: allowlists and custom keywords per customer, without changing the general rules.

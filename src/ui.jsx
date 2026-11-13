@@ -67,3 +67,19 @@ export function ClassTag({ dataClass, large = false }) {
     </span>
   )
 }
+
+// Previous / "Page X of Y" / Next controls. page is 0-based; label names the
+// list for screen readers. Buttons are disabled on the first and last page.
+export function Pagination({ page, pageCount, onChange, label }) {
+  return (
+    <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E3E6EB] px-5 py-3">
+      <button type="button" onClick={() => onChange(page - 1)} disabled={page === 0} className={secondaryButton}>
+        Previous
+      </button>
+      <span className="text-sm text-[#4A5160]" aria-live="polite">Page {page + 1} of {pageCount}</span>
+      <button type="button" onClick={() => onChange(page + 1)} disabled={page >= pageCount - 1} className={secondaryButton}>
+        Next
+      </button>
+    </nav>
+  )
+}

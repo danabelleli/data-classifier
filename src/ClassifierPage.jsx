@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { downloadResults } from './exportResults.js'
-import { ClassTag, MAX_UPLOAD_BYTES, PageHeader, focusRing, primaryButton, secondaryButton } from './ui.jsx'
+import { ClassTag, MAX_UPLOAD_BYTES, PageHeader, Pagination, focusRing, primaryButton, secondaryButton } from './ui.jsx'
 
 function Header({ result, loading, onUploadClick }) {
   const sensitive = result ? result.columns.filter((c) => c.data_class).length : 0
@@ -41,6 +41,46 @@ function ColumnList({ columns, selected, onSelect }) {
   )
 }
 
+const VALUES_PER_PAGE = 10
+
+// The column's values with their results, 10 per page.
+// The API sends up to 1,000 values per column (fewer for very large files, to
+// stay under Vercel's response limit); when that is not every row, the label
+// says how many are shown.
+function ValuesList({ column, rowCount }) {
+  const [page, setPage] = useState(0)
+  // Back to page 1 whenever another column (or a new file) is shown.
+  useEffect(() => setPage(0), [column])
+
+  const pageCount = Math.max(1, Math.ceil(column.values.length / VALUES_PER_PAGE))
+  const first = page * VALUES_PER_PAGE
+  const shown = column.values.slice(first, first + VALUES_PER_PAGE)
+  const countLabel = column.values.length < rowCount
+    ? `Showing the first ${column.values.length.toLocaleString()} of ${rowCount.toLocaleString()} values`
+    : `${rowCount.toLocaleString()} value${rowCount === 1 ? '' : 's'}`
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#E3E6EB] bg-white">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#E3E6EB] px-5 py-4">
+        <h2 className="text-base font-semibold">Values</h2>
+        <span className="text-[13px] text-[#5B6270]">
+          {column.checked_class && !column.data_class ? `Checked against ${column.checked_class} · ` : ''}
+          {countLabel}
+        </span>
+      </div>
+      <ul>
+        {shown.map((item, index) => (
+          <li key={first + index} className="flex flex-wrap justify-between gap-3 border-t border-[#EEF0F3] px-5 py-3 text-sm first:border-t-0">
+            <span className={`min-w-0 font-mono text-[13px] break-all ${item.result === 'Empty' ? 'text-[#5B6270]' : ''}`}>{item.value}</span>
+            <span className="text-[#4A5160]">{item.result}</span>
+          </li>
+        ))}
+      </ul>
+      <Pagination page={page} pageCount={pageCount} onChange={setPage} label="Values pages" />
+    </div>
+  )
+}
+
 function ColumnDetail({ column, rowCount }) {
   const hasPercent = column.match_percent !== null
   return (
@@ -74,25 +114,7 @@ function ColumnDetail({ column, rowCount }) {
         </dl>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#E3E6EB] bg-white">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#E3E6EB] px-5 py-4">
-          <h2 className="text-base font-semibold">Values</h2>
-          <span className="text-[13px] text-[#5B6270]">
-            {column.checked_class && !column.data_class ? `Checked against ${column.checked_class} · ` : ''}
-            {column.values.length < rowCount
-              ? `First ${column.values.length} of ${rowCount.toLocaleString()} rows`
-              : `${rowCount} rows`}
-          </span>
-        </div>
-        <ul>
-          {column.values.map((item, index) => (
-            <li key={index} className="flex flex-wrap justify-between gap-3 border-t border-[#EEF0F3] px-5 py-3 text-sm first:border-t-0">
-              <span className={`min-w-0 font-mono text-[13px] break-all ${item.result === 'Empty' ? 'text-[#5B6270]' : ''}`}>{item.value}</span>
-              <span className="text-[#4A5160]">{item.result}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ValuesList column={column} rowCount={rowCount} />
     </section>
   )
 }

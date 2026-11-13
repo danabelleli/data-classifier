@@ -13,6 +13,7 @@ Python note: dicts are used like plain JS objects here. The difference: keys are
 read with column["name"], never column.name.
 """
 
+import json
 from collections import Counter
 
 from classifier import rules_city, rules_dates, rules_email, rules_name, rules_phone, rules_ssn
@@ -40,7 +41,15 @@ PRIORITY = [SSN, PHONE, EMAIL, DOB, NAME, CITY]
 MIN_VALUES = 1
 SMALL_COLUMN = 10         # below this many values the threshold is 80%, else 90%
 CLOSE_POINTS = 5          # "within 5 percentage points" for conflict resolution
-MAX_VALUES_SHOWN = 20     # how many values the UI lists per column (OPEN: Dana to decide)
+# How many values per column are sent to the UI (shown there 10 per page).
+# This only limits the on-screen list: classification always uses every row
+# (up to 10,000). Most files have far fewer rows, so they show every value.
+MAX_VALUES_SHOWN = 1_000
+
+# Vercel rejects responses above ~4.5 MB. If a wide file (many columns) or
+# long values would push the response past this, fewer values per column are
+# sent (see fit_values_to_size). The margin leaves room for the rest of the JSON.
+MAX_RESPONSE_BYTES = 4_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -817,15 +826,33 @@ def classify_columns(headers, rows):
     return results
 
 
+def fit_values_to_size(result):
+    """
+    Make sure the JSON response stays under MAX_RESPONSE_BYTES by shortening
+    every column's "values" list (the on-screen list only, never the
+    classification). Starts from MAX_VALUES_SHOWN per column and halves it
+    (1,000 -> 500 -> 250 ...) until the response fits, but never below 10
+    (one page in the UI). The UI compares the list length with row_count and
+    says "Showing the first N of M values", so nothing is cut silently.
+    """
+    shown = MAX_VALUES_SHOWN
+    # json.dumps measures the response exactly as the API will send it.
+    while len(json.dumps(result)) > MAX_RESPONSE_BYTES and shown > 10:
+        shown = max(10, shown // 2)  # // is whole-number division (Math.floor(a / b) in JS)
+        for column in result["columns"]:
+            column["values"] = column["values"][:shown]
+    return result
+
+
 def classify_file(data, file_name):
     """
     Classify an uploaded CSV file (raw bytes). Returns the JSON-ready dict of spec 6.
     This is the one function the API calls.
     """
     headers, rows = read_csv(data)
-    return {
+    return fit_values_to_size({
         "file_name": file_name,
         "row_count": len(rows),
         "column_count": len(headers),
         "columns": classify_columns(headers, rows),
-    }
+    })
