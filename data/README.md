@@ -9,7 +9,7 @@ The raw downloads are turned into these files by [`scripts/build_reference_data.
 | `us_places.csv` | US Census Bureau, 2010 Gazetteer Files, Places | https://www2.census.gov/geo/docs/maps-data/data/gazetteer/Gaz_places_national.zip | 2026-11-13 | Keeps name, state code and population (`POP10`) for the 50 states + DC. Strips the place-type suffix ("Austin city" → "Austin", "Honolulu CDP" → "Honolulu"). For city-county governments (for example "Nashville-Davidson metropolitan government (balance)") it also adds the short name ("Nashville"). |
 | `us_states.csv` | US Census Bureau, state FIPS codes | https://www2.census.gov/geo/docs/reference/state.txt | 2026-11-13 | Keeps the 50 states + DC (codes ≤ 56): full name and 2-letter abbreviation. |
 | `surnames.txt` | US Census Bureau, 2010 surnames | https://www2.census.gov/topics/genealogy/2010surnames/names.zip | 2026-11-13 | Lowercases every surname, drops the "ALL OTHER NAMES" summary row. 162,253 names. |
-| `first_names.txt` | Social Security Administration, baby names, national data | https://www.ssa.gov/oact/babynames/names.zip | **TODO: download manually** | Merges all years (`yob1880.txt` … latest), deduplicates and lowercases. |
+| `first_names.txt` | Social Security Administration, baby names, national data | https://www.ssa.gov/oact/babynames/names.zip | 2026-11-13 (downloaded in a browser; the SSA site blocks scripted downloads) | Merges all years (`yob1880.txt` … `yob2025.txt`, 146 files), deduplicates and lowercases. 105,966 names. |
 
 ## Why the 2010 Gazetteer
 

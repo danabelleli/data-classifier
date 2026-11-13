@@ -8,12 +8,38 @@ The six classes are National ID (US Social Security Number), City, Person Name, 
 
 ## 1. How to use it
 
-**Live app:** _(add the Vercel link after deploying)_
+**Live app:** https://data-classifier-kappa.vercel.app/
 
 1. Click **Upload CSV** and choose a file.
 2. The left list shows every column. Classified columns have a blue tag with their class.
 3. Click a column to see the match percentage, **why** it was (or was not) classified, and its values with the result for each one.
 4. Click **Export results** to download `<file name>_results.csv` (one row per column: `column`, `data_class`, `match_percent`, `reason`).
+
+### Test results page (precision and recall)
+
+The **Test results** tab measures how well the rules work on a file whose correct answers you know.
+
+1. **Test CSV:** the file to test.
+2. **Answers CSV:** the correct class for each column of the test CSV, written by a person:
+   ```
+   column,correct_class
+   full_name,Person Name
+   title,Not classified
+   ```
+   Class names must be exactly: National ID (SSN), City, Person Name, Phone Number, Email Address, Date of Birth, Not classified. Spaces around a name are ignored; capitalization must match.
+3. Click **Run tests**. The test CSV is classified with exactly the same code as the Classifier page, then each column is compared with its correct answer. Nothing is stored.
+
+If the files don't line up (a column with no answer, an answer for a column that isn't in the file, a column listed twice, or an unknown class name), the test does not run and every problem is listed, so the numbers are never based on a partial comparison.
+
+For each of the 6 classes the page counts:
+- **True positive (TP):** the app said this class and the correct answer is this class.
+- **False positive (FP):** the app said this class, but the correct answer is something else.
+- **False negative (FN):** the correct answer is this class, but the app said something else.
+- **True negative (TN):** neither is this class.
+
+A column given the wrong class (app says City, correct answer is Person Name) is an FP for City **and** an FN for Person Name.
+**Precision = TP ÷ (TP + FP)**: of the columns the app labeled with this class, how many were right. **Recall = TP ÷ (TP + FN)**: of the columns that really are this class, how many the app found. When the denominator is 0, the page shows "—".
+The **Mistakes** list shows every wrong column with the app's reason, 10 per page.
 
 **Limits:** Vercel accepts uploads up to about **4.5 MB** per request. Only the first **10,000 rows** are analyzed. The UI lists the first 20 values of each column.
 
@@ -23,15 +49,15 @@ You need Python 3.10+ and Node.js 18+.
 
 ```bash
 npm install
-python3 api/classify.py   # terminal 1: the classifier API on http://localhost:8000
+python3 dev_server.py     # terminal 1: the Python API on http://localhost:8000
 npm run dev               # terminal 2: the web app on http://localhost:5173
 ```
 
-Vite forwards `/api` requests to the Python server, so open http://localhost:5173 and upload a file. If you have the Vercel CLI, `vercel dev` runs both together the same way as in production.
+`dev_server.py` serves both API endpoints (`/api/classify` and `/api/evaluate`) and is only used locally. Vite forwards `/api` requests to it, so open http://localhost:5173 and upload a file. If you have the Vercel CLI, `vercel dev` runs both together the same way as in production.
 
 ### Deploy
 
-Push the repo to GitHub and import it in Vercel (framework: Vite). The React app is served as static files from `dist/`. `api/classify.py` becomes a Python serverless function. `vercel.json` makes sure the `classifier/` code and the `data/` reference lists are bundled with it. The Python code uses only the standard library, so there is no `requirements.txt`.
+Push the repo to GitHub and import it in Vercel (framework: Vite). The React app is served as static files from `dist/`. Each file in `api/` (`classify.py`, `evaluate.py`) becomes a Python serverless function. `vercel.json` makes sure the `classifier/` code and the `data/` reference lists are bundled with them. The Python code uses only the standard library, so there is no `requirements.txt`.
 
 ---
 
@@ -52,11 +78,15 @@ Some classes depend on others, so the app runs two passes. **Pass 1** looks at e
 
 | Path | What it does |
 |---|---|
-| `api/classify.py` | Vercel function: receives the upload, returns JSON |
+| `api/classify.py` | Vercel function for the Classifier page: receives the upload, returns JSON |
+| `api/evaluate.py` | Vercel function for the Test results page: receives the test CSV and answers CSV, returns the counts |
+| `dev_server.py` | Local only: one server for both API endpoints |
 | `classifier/cleaning.py` | Reads the CSV, trims values, handles placeholders like `N/A` |
 | `classifier/headers.py` | Splits headers into words (`employeeSSN` → `employee`, `ssn`) and matches keywords |
 | `classifier/rules_*.py` | One file per class with its value rule and header keywords |
 | `classifier/decide.py` | Thresholds, the two passes, conflict resolution, reasons |
+| `classifier/evaluate.py` | Test results: checks the answers CSV, compares, counts TP/FP/FN/TN, precision and recall |
+| `classifier/upload.py` | Reads uploaded files from a request and sends JSON (shared by both endpoints) |
 | `data/` | Official reference lists ([sources](data/README.md)) |
 | `scripts/build_reference_data.py` | Rebuilds `data/` from the raw official downloads |
 | `src/` | React + Vite + Tailwind web app |

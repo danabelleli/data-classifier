@@ -4,6 +4,10 @@
     "api/classify.py": {
       "includeFiles": "{classifier,data}/**",
       "maxDuration": 30
+    },
+    "api/evaluate.py": {
+      "includeFiles": "{classifier,data}/**",
+      "maxDuration": 30
     }
   }
 }
