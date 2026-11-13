@@ -199,9 +199,21 @@ def build_places(raw_dir, states):
     print(f"us_places.csv: {len(rows)} rows")
 
 
+# Keep only surnames shared by at least this many people (the "count" column).
+# Why: the full Census list (every surname with 100+ people, 162,253 names)
+# includes rare surnames that are also ordinary words, such as TABLE (134 people)
+# and CHAIR (139 people). Those let a "product_name" column (Austin Table,
+# Boston Chair) pass the "at least 50% of last words are known surnames" check.
+# Surnames with a count of 1,000+ are only 15% of the names (24,889), but they
+# still cover 77.3% of all people counted, so real name columns stay well above
+# the 50% surname threshold while the rare word-like surnames are dropped.
+MIN_SURNAME_COUNT = 1_000
+
+
 def build_surnames(raw_dir):
     """
-    Write data/surnames.txt: one lowercase surname per line, from the Census 2010 list.
+    Write data/surnames.txt: one lowercase surname per line, from the Census 2010
+    list, keeping only surnames with a count of MIN_SURNAME_COUNT or more.
     The list ends with an "ALL OTHER NAMES" summary row, which is not a name.
     """
     source = raw_dir / "Names_2010Census.csv"
@@ -210,7 +222,9 @@ def build_surnames(raw_dir):
         return
     with open(source, encoding="utf-8-sig") as f:
         names = sorted(
-            {row["name"].strip().lower() for row in csv.DictReader(f)} - {"all other names"}
+            {row["name"].strip().lower() for row in csv.DictReader(f)
+             if int(row["count"]) >= MIN_SURNAME_COUNT}  # drop rare surnames (see above)
+            - {"all other names"}
         )
     (DATA_DIR / "surnames.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
     print(f"surnames.txt: {len(names)} names")
