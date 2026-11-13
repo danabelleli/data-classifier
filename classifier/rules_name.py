@@ -21,6 +21,25 @@ HEADER_KEYWORDS = [
     "lname",
 ]
 
+# Headers that name a PERSON's name specifically. Used as "person evidence"
+# (see decide.name_candidate). The generic "name" keyword and "<something>_name"
+# are left out on purpose: "merchant_name", "product_name" or "company_name"
+# also contain "name" but do not hold people. (They still lower the threshold
+# as header support, through HEADER_KEYWORDS above.)
+PERSON_HEADER_KEYWORDS = [
+    "first_name",
+    "last_name",
+    "full_name",
+    "surname",
+    "given_name",
+    "fname",
+    "lname",
+]
+
+# Headers that only make sense in a file about people. Matched on the header
+# alone (values are not checked) as file-level person evidence.
+GENDER_HEADER_KEYWORDS = ["gender", "sex"]
+
 TITLES = {"mr", "mrs", "ms", "dr", "prof"}
 SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
 

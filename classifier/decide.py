@@ -307,9 +307,48 @@ def email_cross_reference(column, email_column):
     }
 
 
-def name_candidate(column, email_column):
+def person_evidence(column, relational, person_facts):
+    """
+    Person evidence for a Person Name column: proof that the names belong to
+    PEOPLE, not to brands, products or companies named after people.
+    Returns a list of what was found (empty list = no person evidence).
+
+    At least ONE of these must be true:
+      1. a person-only identifier in the file: a column classified as SSN, a
+         Date of Birth column found through its birth-keyword header (Path 1),
+         or a column whose header contains "gender" or "sex";
+      2. the email cross-reference passes for this column;
+      3. the header is a specific person-name header (first_name, last_name, ...).
+
+    person_facts: file-level facts computed in classify_columns after Pass 1:
+      {"ssn": [column names], "dob": [column names], "gender": [column names]}
+    """
+    found = []
+    if person_facts["ssn"]:
+        found.append(f"SSN column \"{person_facts['ssn'][0]}\" in the file")
+    if person_facts["dob"]:
+        found.append(f"birth date column \"{person_facts['dob'][0]}\" in the file")
+    if person_facts["gender"]:
+        found.append(f"gender column \"{person_facts['gender'][0]}\" in the file")
+    if relational["support"]:
+        found.append("names match the email in the same row")
+    if find_keyword(column["name"], rules_name.PERSON_HEADER_KEYWORDS):
+        found.append(f"\"{column['name']}\" is a person-name header")
+    return found
+
+
+def name_candidate(column, email_column, person_facts):
     """
     Person Name (spec 4.6).
+
+    On top of every check below, Person Name needs PERSON EVIDENCE (see
+    person_evidence): an SSN, birth date (by header) or gender column in the
+    file, an email match, or a specific person-name header like first_name.
+    Why: many brands are named after real people. A "merchant_name" column
+    (Kate Spade, Tommy Hilfiger, Calvin Klein) passed every name check: the
+    values are real first names + real surnames, and the header contains
+    "name". Nothing in the values can tell a person from a brand; evidence
+    that the file or the column is about people can.
 
     Full names (2-4 words, first word a known first name) count on values alone.
 
@@ -391,6 +430,20 @@ def name_candidate(column, email_column):
         )
     if notes:
         candidate["uncounted_note"] = " ".join(notes)
+
+    # Person evidence (see the docstring): checked last, only when the values
+    # and header would otherwise make this column Person Name.
+    found = person_evidence(column, relational, person_facts)
+    if candidate["passes"] and not found:
+        candidate["passes"] = False
+        candidate["blocked_note"] = (
+            f"{candidate['matched']} of {candidate['total']} values look like names "
+            f"({format_percent(candidate['percent'])}), but there is no person evidence: no SSN, "
+            f"birth date or gender column in the file, no email match, and \"{column['name']}\" "
+            "is not a person-name header."
+        )
+    elif found:
+        candidate["person_note"] = "Person evidence: " + "; ".join(found) + "."
     return candidate
 
 
@@ -526,6 +579,8 @@ def classified_reason(candidate, header, conflict_note):
         parts.append("Birth date by position: the file is about people and this is the earliest date in the row.")
     if candidate.get("uncounted_note"):  # .get returns None instead of raising if the key is missing
         parts.append(candidate["uncounted_note"])
+    if candidate.get("person_note"):  # Person Name: which person evidence was found
+        parts.append(candidate["person_note"])
     if conflict_note:
         parts.append(conflict_note)
     return " ".join(parts)
@@ -641,7 +696,8 @@ def build_result(column, winner, conflict_note, context):
         return base
 
     if closest.get("blocked_note"):
-        # Values met the threshold but required support was missing (City).
+        # Values met the threshold but required evidence was missing
+        # (City support, or Person Name person evidence).
         reason = f"Closest class: {closest['data_class']}. {closest['blocked_note']}"
     else:
         reason = (f"Closest class: {closest['data_class']}. {values_sentence(closest)[:-1]}, "
@@ -704,13 +760,24 @@ def classify_columns(headers, rows):
     state_column = next((c for c in usable if c["is_state_column"]), None)  # first match, or None
     email_column = next((c for c in usable if passes(c, EMAIL)), None)
 
+    # File-level person evidence for Person Name, from Pass 1 results.
+    # SSN and Date of Birth Path 1 (birth-keyword header) are already decided in
+    # Pass 1; Path 2 runs after Person Name, so it is not used here. Gender is
+    # header only, checked on every column (even empty ones), values not checked.
+    person_facts = {
+        "ssn": [c["name"] for c in usable if passes(c, SSN)],
+        "dob": [c["name"] for c in usable if passes(c, DOB)],
+        "gender": [c["name"] for c in columns
+                   if find_keyword(c["name"], rules_name.GENDER_HEADER_KEYWORDS)],
+    }
+
     # ---- Pass 2: City and Person Name ----
     for column in usable:
         if column["is_state_column"]:
             continue
         column["candidates"][CITY] = city_candidate(column, state_column)
         column["candidates"][NAME] = name_candidate(
-            column, email_column if email_column is not column else None)
+            column, email_column if email_column is not column else None, person_facts)
 
     winners = {}
     for column in usable:
