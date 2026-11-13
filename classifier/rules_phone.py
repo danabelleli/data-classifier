@@ -21,6 +21,13 @@ PHONE_PATTERN = re.compile(r"(\+?1[-. ]?)?\(?([2-9]\d{2})\)?[-. ]?([2-9]\d{2})[-
 
 HEADER_KEYWORDS = ["phone", "mobile", "cell", "tel", "telephone", "contact_number"]
 
+# A value made of digits only, with no formatting at all: "2125550101", "12125550101".
+RAW_DIGITS = re.compile(r"\d+")
+
+# Note used when a raw-digit value is not counted (see check_phone).
+# decide.py compares against it to count those values for the reason text.
+RAW_DIGITS_NOTE = "No match · raw digits need a phone header"
+
 
 def load_area_codes():
     """
@@ -42,12 +49,21 @@ def region_of(area_code):
     return AREA_CODES.get(area_code, "unknown region")  # .get = value or a default
 
 
-def check_phone(value):
+def check_phone(value, raw_allowed):
     """
     Return (matched, note, area_code) for one value.
 
     area_code is returned so the reason can name the most common one
     ("212 = New York"). It is None when the value is not a phone number.
+
+    raw_allowed: True when the column header matches a phone keyword.
+    Why: a formatted value ((212) 555-0101, 212-555-0101, +1 212 555 0101) has
+    the shape people use to write phone numbers, so the format itself is
+    evidence. A raw value (2125550101) is just a 10-digit number: order IDs like
+    2024001001 also start with a real area code (202). So raw digits only count
+    when the header says the column holds phone numbers. The header never
+    replaces the values: raw values must still match the pattern and the area
+    code list. ("+12125550101" has a "+", a phone sign, so it is not raw.)
     """
     match = PHONE_PATTERN.fullmatch(value)
     if not match:
@@ -55,4 +71,6 @@ def check_phone(value):
     area_code = match.group(2)  # group(2) is the area code captured above
     if area_code not in AREA_CODES:
         return False, f"No match · area code {area_code} is not a US area code in service", None
+    if RAW_DIGITS.fullmatch(value) and not raw_allowed:
+        return False, RAW_DIGITS_NOTE, None
     return True, f"Match · {area_code} ({region_of(area_code)})", area_code

@@ -60,6 +60,11 @@ def format_percent(percent):
     return f"{rounded}%"
 
 
+def count_of(count, total):
+    """ "1 of 4 values is" or "3 of 4 values are", so reason sentences read correctly."""
+    return f"{count} of {total} values {'is' if count == 1 else 'are'}"
+
+
 def evidence(label, status, text):
     """One row of the "Why" table in the UI. status is "Yes", "No" or "Not used"."""
     return {"label": label, "status": status, "text": text}
@@ -124,21 +129,39 @@ def email_candidate(column):
 
 
 def ssn_candidate(column):
-    """SSN: pattern + validation. The detail counts the separator styles found."""
-    results = {i: rules_ssn.check_ssn(v) for i, v in column["non_empty"]}
+    """
+    SSN: pattern + validation. The detail counts the separator styles found.
+    Raw 9-digit values (no dashes or spaces) only count when the header matches
+    an SSN keyword (see rules_ssn.check_ssn for why).
+    """
+    raw_allowed = find_keyword(column["name"], rules_ssn.HEADER_KEYWORDS) is not None
+    results = {i: rules_ssn.check_ssn(v, raw_allowed) for i, v in column["non_empty"]}
     # Counter counts how often each item appears: Counter(["a", "a", "b"]) -> {"a": 2, "b": 1}
     styles = Counter(note.split(" · ")[1] for ok, note in results.values() if ok)
     detail = ", ".join(f"{count} with {style}" for style, count in styles.most_common())
-    return make_candidate(SSN, column, results, rules_ssn.HEADER_KEYWORDS, "SSN",
-                          "match the SSN pattern and pass SSN validation", detail)
+    candidate = make_candidate(SSN, column, results, rules_ssn.HEADER_KEYWORDS, "SSN",
+                               "match the SSN pattern and pass SSN validation", detail)
+    # Explain raw values that were valid SSN digits but not counted.
+    raw_count = sum(1 for _, note in results.values() if note == rules_ssn.RAW_DIGITS_NOTE)
+    if raw_count:
+        candidate["uncounted_note"] = (
+            f"{count_of(raw_count, candidate['total'])} written as raw 9-digit numbers with no dashes "
+            f"or spaces; raw digits need an SSN header, and \"{column['name']}\" has none."
+        )
+    return candidate
 
 
 def phone_candidate(column):
-    """Phone: US format + real area code. The detail names the most common area code."""
+    """
+    Phone: US format + real area code. The detail names the most common area code.
+    Raw digit values (2125550101) only count when the header matches a phone
+    keyword (see rules_phone.check_phone for why).
+    """
+    raw_allowed = find_keyword(column["name"], rules_phone.HEADER_KEYWORDS) is not None
     results = {}
     area_codes = Counter()
     for i, v in column["non_empty"]:
-        matched, note, area_code = rules_phone.check_phone(v)
+        matched, note, area_code = rules_phone.check_phone(v, raw_allowed)
         results[i] = (matched, note)
         if area_code:
             area_codes[area_code] += 1
@@ -146,8 +169,16 @@ def phone_candidate(column):
     if area_codes:
         top_code, _ = area_codes.most_common(1)[0]
         detail = f"most common area code {top_code} = {rules_phone.region_of(top_code)}"
-    return make_candidate(PHONE, column, results, rules_phone.HEADER_KEYWORDS, "phone",
-                          "match a US phone format with a real area code", detail)
+    candidate = make_candidate(PHONE, column, results, rules_phone.HEADER_KEYWORDS, "phone",
+                               "match a US phone format with a real area code", detail)
+    # Explain raw values that were valid phone digits but not counted.
+    raw_count = sum(1 for _, note in results.values() if note == rules_phone.RAW_DIGITS_NOTE)
+    if raw_count:
+        candidate["uncounted_note"] = (
+            f"{count_of(raw_count, candidate['total'])} written as raw digits with no formatting "
+            f"(like 2125550101); raw digits need a phone header, and \"{column['name']}\" has none."
+        )
+    return candidate
 
 
 def state_candidate(column):
@@ -245,49 +276,57 @@ def email_cross_reference(column, email_column):
     }
 
 
-def name_candidate(column, email_column, has_people_data):
+def name_candidate(column, email_column):
     """
     Person Name (spec 4.6).
 
-    First try: values that are full names or first names. If that does not pass,
-    try again counting surnames too, which is only allowed with support (a name
-    header, the email cross-reference, or other people data in the file) because
-    the surname list contains ordinary words like Brown, White, Green, King.
+    Full names (2-4 words, first word a known first name) count on values alone.
+
+    Single-word values (a first name only, or a surname only) count ONLY when
+    the column itself has support: its header matches a name keyword, or the
+    email cross-reference passes (a name word appears in the email in the same
+    row, in at least 50% of rows).
+    Why: the SSA first-name list and the Census surname list both contain
+    ordinary words. A "loyalty_tier" column of Bronze / Silver / Gold was
+    classified as Person Name because all three are in the SSA list. A single
+    word alone cannot tell a name from a word; a name header or a matching
+    email can.
+    File-level people data (another column with SSN, email, phone or date of
+    birth) is NOT support here: it says the file is about people, not that this
+    column holds their names.
     """
     kinds = {i: rules_name.check_name(v) for i, v in column["non_empty"]}
     relational = email_cross_reference(column, email_column)
+    has_header = find_keyword(column["name"], rules_name.HEADER_KEYWORDS) is not None
+    single_words_allowed = has_header or relational["support"]
 
-    def first_name_note(kind, note):
-        # A function defined inside a function, like a JS closure.
-        return note if kind != "surname" else "No match · surname only"
+    results = {}
+    single_words_skipped = 0
+    # dict.items() gives (key, value) pairs; each value here is a (kind, note) pair,
+    # unpacked in the loop header like JS: for (const [i, [kind, note]] of ...)
+    for i, (kind, note) in kinds.items():
+        if kind == "full":
+            results[i] = (True, note)
+        elif kind in ("first", "surname"):
+            if single_words_allowed:
+                results[i] = (True, "Match · first name" if kind == "first" else "Match · surname")
+            else:
+                results[i] = (False, "No match · single word (needs a name header or an email match)")
+                single_words_skipped += 1
+        else:
+            results[i] = (False, note)
 
-    first_results = {i: (kind in ("full", "first"), first_name_note(kind, note))
-                     for i, (kind, note) in kinds.items()}
-    candidate = make_candidate(NAME, column, first_results, rules_name.HEADER_KEYWORDS, "name",
-                               "are names starting with a known first name", relational=relational)
-    if candidate["passes"]:
-        return candidate
-
-    surname_results = {i: (kind is not None, "Match · surname" if kind == "surname" else note)
-                       for i, (kind, note) in kinds.items()}
-    surname_candidate = make_candidate(NAME, column, surname_results, rules_name.HEADER_KEYWORDS,
-                                       "name", "are known first names or surnames",
-                                       relational=relational)
-    allowed = (surname_candidate["header_keyword"] is not None
-               or relational["support"] or has_people_data)
-    if surname_candidate["passes"] and allowed:
-        if not surname_candidate["header_keyword"] and not relational["support"]:
-            surname_candidate["detail"] = ("surnames accepted because the file has other "
-                                           "people data (SSN, email, phone or date of birth)")
-        return surname_candidate
-
-    if surname_candidate["passes"]:
-        # Surnames would pass on values alone, but there is no support: explain why not.
-        candidate["blocked_note"] = (
-            f"{surname_candidate['matched']} of {surname_candidate['total']} values are known "
-            "first names or surnames, but a surname-only column needs support (a name header, "
-            "names matching an email column, or other people data in the file), because the "
-            "surname list contains ordinary words like Brown, White, Green and King."
+    if single_words_allowed:
+        predicate = "are names (full names, or single first names or surnames)"
+    else:
+        predicate = "are full names starting with a known first name"
+    candidate = make_candidate(NAME, column, results, rules_name.HEADER_KEYWORDS, "name",
+                               predicate, relational=relational)
+    if single_words_skipped:
+        candidate["uncounted_note"] = (
+            f"{count_of(single_words_skipped, candidate['total'])} "
+            f"{'a single word' if single_words_skipped == 1 else 'single words'}; single words "
+            "need a name header or an email match, and this column has neither."
         )
     return candidate
 
@@ -357,9 +396,13 @@ def resolve(candidates):
 def closest_candidate(candidates):
     """
     For a Not classified column, the class that came closest (highest %, then a
-    header match, then priority). Used to explain why it was not classified.
+    header match, then a class with values that matched its rule but were not
+    counted, then priority). Used to explain why it was not classified.
+    The "not counted" tie-break makes an order_id column of raw 10-digit numbers
+    explain the phone rule instead of saying that nothing matched.
     """
     return min(candidates, key=lambda c: (-c["percent"], c["header_keyword"] is None,
+                                          not c.get("uncounted_note"),
                                           PRIORITY.index(c["data_class"])))
 
 
@@ -415,6 +458,8 @@ def classified_reason(candidate, header, conflict_note):
                      f"{candidate['base_threshold']}% to {candidate['threshold']}%.")
     if candidate["data_class"] == DOB and not candidate["header_keyword"]:
         parts.append("Birth date by position: the file is about people and this is the earliest date in the row.")
+    if candidate.get("uncounted_note"):  # .get returns None instead of raising if the key is missing
+        parts.append(candidate["uncounted_note"])
     if conflict_note:
         parts.append(conflict_note)
     return " ".join(parts)
@@ -518,7 +563,7 @@ def build_result(column, winner, conflict_note, context):
         return base
 
     closest = closest_candidate(candidates)
-    if closest["matched"] == 0 and not closest["header_keyword"]:
+    if closest["matched"] == 0 and not closest["header_keyword"] and not closest.get("uncounted_note"):
         base.update({
             "reason": f"None of the 6 classes match: 0 of {count} non-empty values fit any class rule.",
             "evidence": [evidence("Values", "No", f"0 of {count} fit any class rule"),
@@ -531,8 +576,8 @@ def build_result(column, winner, conflict_note, context):
     reason = (f"Closest class: {closest['data_class']}. {values_sentence(closest)[:-1]}, "
               f"below the {closest['threshold']}% needed. ")
     reason += " ".join(support_sentences(closest, header))
-    if closest.get("blocked_note"):  # .get returns None instead of raising if the key is missing
-        reason += " " + closest["blocked_note"]
+    if closest.get("uncounted_note"):  # .get returns None instead of raising if the key is missing
+        reason += " " + closest["uncounted_note"]
     base.update({
         "checked_class": closest["data_class"],
         "reason": reason,
@@ -570,8 +615,8 @@ def classify_columns(headers, rows):
 
     Order of evaluation (spec 5):
       Pass 1  value-only checks; decide Email, SSN, Phone, State, DOB Path 1.
-      Pass 2  City (with state pairs), Person Name (with email cross-reference and
-              file-level people data), then DOB Path 2. Conflict resolution last.
+      Pass 2  City (with state pairs), Person Name (with email cross-reference),
+              then DOB Path 2. Conflict resolution last.
     """
     columns = make_columns(headers, rows)
     # Columns with too few values are never classified, so they are skipped
@@ -587,8 +632,6 @@ def classify_columns(headers, rows):
 
     state_column = next((c for c in usable if c["is_state_column"]), None)  # first match, or None
     email_column = next((c for c in usable if passes(c, EMAIL)), None)
-    # File-level people data: some column is SSN, Email, Phone or DOB (by header).
-    has_people_data = any(passes(c, cls) for c in usable for cls in (SSN, EMAIL, PHONE, DOB))
 
     # ---- Pass 2: City and Person Name ----
     for column in usable:
@@ -596,7 +639,7 @@ def classify_columns(headers, rows):
             continue
         column["candidates"][CITY] = city_candidate(column, state_column)
         column["candidates"][NAME] = name_candidate(
-            column, email_column if email_column is not column else None, has_people_data)
+            column, email_column if email_column is not column else None)
 
     winners = {}
     for column in usable:
