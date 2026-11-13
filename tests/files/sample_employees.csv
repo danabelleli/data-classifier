@@ -1,0 +1,5 @@
+employee_id,full_name,email,phone,ssn,dob,city,state,gender,title,department,annual_salary,bank_account,start_date,field_12,notes
+1001,Emily Carter,emily.carter@example.com,(212) 555-0101,123-45-6781,1990-03-14,New York,NY,F,Data Analyst,R&D,96000,021000021-4455667788,2022-01-02,2024-12-3100,Moved to the data team in 2023
+1002,Jason Lee,jason.lee@example.com,(415) 555-0112,234-56-7892,1985-07-01,San Francisco,CA,M,Sales Engineer,Sales,124000,121000358-9988776655,2021-06-15,1113-12-2443,Prefers email
+1003,Maria Gonzalez,maria.gonzalez@example.com,(512) 555-0123,345-67-8903,1993-11-23,Austin,TX,Female,Product Manager,Product,118000,111000025-1122334455,2023-03-20,2022-08-1201,
+1004,Andrew Brooks,andrew.brooks@example.com,(617) 555-0134,456-78-9014,1988-02-09,Boston,MA,M,Backend Engineer,R&D,132000,011000138-5566778899,2020-09-01,2025-01-4567,On parental leave until May

@@ -1,0 +1,386 @@
+area_code,region,type
+201,New Jersey,geographic
+202,District of Columbia,geographic
+203,Connecticut,geographic
+205,Alabama,geographic
+206,Washington,geographic
+207,Maine,geographic
+208,Idaho,geographic
+209,California,geographic
+210,Texas,geographic
+212,New York,geographic
+213,California,geographic
+214,Texas,geographic
+215,Pennsylvania,geographic
+216,Ohio,geographic
+217,Illinois,geographic
+218,Minnesota,geographic
+219,Indiana,geographic
+220,Ohio,geographic
+223,Pennsylvania,geographic
+224,Illinois,geographic
+225,Louisiana,geographic
+227,Maryland,geographic
+228,Mississippi,geographic
+229,Georgia,geographic
+231,Michigan,geographic
+234,Ohio,geographic
+235,Missouri,geographic
+239,Florida,geographic
+240,Maryland,geographic
+248,Michigan,geographic
+251,Alabama,geographic
+252,North Carolina,geographic
+253,Washington,geographic
+254,Texas,geographic
+256,Alabama,geographic
+260,Indiana,geographic
+262,Wisconsin,geographic
+267,Pennsylvania,geographic
+269,Michigan,geographic
+270,Kentucky,geographic
+272,Pennsylvania,geographic
+274,Wisconsin,geographic
+276,Virginia,geographic
+279,California,geographic
+281,Texas,geographic
+283,Ohio,geographic
+301,Maryland,geographic
+302,Delaware,geographic
+303,Colorado,geographic
+304,West Virginia,geographic
+305,Florida,geographic
+307,Wyoming,geographic
+308,Nebraska,geographic
+309,Illinois,geographic
+310,California,geographic
+312,Illinois,geographic
+313,Michigan,geographic
+314,Missouri,geographic
+315,New York,geographic
+316,Kansas,geographic
+317,Indiana,geographic
+318,Louisiana,geographic
+319,Iowa,geographic
+320,Minnesota,geographic
+321,Florida,geographic
+323,California,geographic
+324,Florida,geographic
+325,Texas,geographic
+326,Ohio,geographic
+327,Arkansas,geographic
+329,New York,geographic
+330,Ohio,geographic
+331,Illinois,geographic
+332,New York,geographic
+334,Alabama,geographic
+336,North Carolina,geographic
+337,Louisiana,geographic
+339,Massachusetts,geographic
+340,U.S. Virgin Islands,geographic
+341,California,geographic
+346,Texas,geographic
+347,New York,geographic
+350,California,geographic
+351,Massachusetts,geographic
+352,Florida,geographic
+353,Wisconsin,geographic
+357,California,geographic
+360,Washington,geographic
+361,Texas,geographic
+363,New York,geographic
+364,Kentucky,geographic
+369,California,geographic
+380,Ohio,geographic
+385,Utah,geographic
+386,Florida,geographic
+401,Rhode Island,geographic
+402,Nebraska,geographic
+404,Georgia,geographic
+405,Oklahoma,geographic
+406,Montana,geographic
+407,Florida,geographic
+408,California,geographic
+409,Texas,geographic
+410,Maryland,geographic
+412,Pennsylvania,geographic
+413,Massachusetts,geographic
+414,Wisconsin,geographic
+415,California,geographic
+417,Missouri,geographic
+419,Ohio,geographic
+423,Tennessee,geographic
+424,California,geographic
+425,Washington,geographic
+430,Texas,geographic
+432,Texas,geographic
+434,Virginia,geographic
+435,Utah,geographic
+436,Ohio,geographic
+440,Ohio,geographic
+442,California,geographic
+443,Maryland,geographic
+445,Pennsylvania,geographic
+447,Illinois,geographic
+448,Florida,geographic
+457,Louisiana,geographic
+458,Oregon,geographic
+463,Indiana,geographic
+464,Illinois,geographic
+465,New York,geographic
+469,Texas,geographic
+470,Georgia,geographic
+471,Mississippi,geographic
+472,North Carolina,geographic
+475,Connecticut,geographic
+478,Georgia,geographic
+479,Arkansas,geographic
+480,Arizona,geographic
+483,Alabama,geographic
+484,Pennsylvania,geographic
+501,Arkansas,geographic
+502,Kentucky,geographic
+503,Oregon,geographic
+504,Louisiana,geographic
+505,New Mexico,geographic
+507,Minnesota,geographic
+508,Massachusetts,geographic
+509,Washington,geographic
+510,California,geographic
+512,Texas,geographic
+513,Ohio,geographic
+515,Iowa,geographic
+516,New York,geographic
+517,Michigan,geographic
+518,New York,geographic
+520,Arizona,geographic
+530,California,geographic
+531,Nebraska,geographic
+534,Wisconsin,geographic
+539,Oklahoma,geographic
+540,Virginia,geographic
+541,Oregon,geographic
+551,New Jersey,geographic
+557,Missouri,geographic
+559,California,geographic
+561,Florida,geographic
+562,California,geographic
+563,Iowa,geographic
+564,Washington,geographic
+567,Ohio,geographic
+570,Pennsylvania,geographic
+571,Virginia,geographic
+572,Oklahoma,geographic
+573,Missouri,geographic
+574,Indiana,geographic
+575,New Mexico,geographic
+580,Oklahoma,geographic
+582,Pennsylvania,geographic
+585,New York,geographic
+586,Michigan,geographic
+601,Mississippi,geographic
+602,Arizona,geographic
+603,New Hampshire,geographic
+605,South Dakota,geographic
+606,Kentucky,geographic
+607,New York,geographic
+608,Wisconsin,geographic
+609,New Jersey,geographic
+610,Pennsylvania,geographic
+612,Minnesota,geographic
+614,Ohio,geographic
+615,Tennessee,geographic
+616,Michigan,geographic
+617,Massachusetts,geographic
+618,Illinois,geographic
+619,California,geographic
+620,Kansas,geographic
+621,Texas,geographic
+623,Arizona,geographic
+624,New York,geographic
+626,California,geographic
+628,California,geographic
+629,Tennessee,geographic
+630,Illinois,geographic
+631,New York,geographic
+636,Missouri,geographic
+640,New Jersey,geographic
+641,Iowa,geographic
+645,Florida,geographic
+646,New York,geographic
+650,California,geographic
+651,Minnesota,geographic
+656,Florida,geographic
+657,California,geographic
+659,Alabama,geographic
+660,Missouri,geographic
+661,California,geographic
+662,Mississippi,geographic
+667,Maryland,geographic
+669,California,geographic
+670,CNMI,geographic
+671,Guam,geographic
+678,Georgia,geographic
+679,Michigan,geographic
+680,New York,geographic
+681,West Virginia,geographic
+682,Texas,geographic
+684,American Samoa,geographic
+686,Virginia,geographic
+689,Florida,geographic
+701,North Dakota,geographic
+702,Nevada,geographic
+703,Virginia,geographic
+704,North Carolina,geographic
+706,Georgia,geographic
+707,California,geographic
+708,Illinois,geographic
+712,Iowa,geographic
+713,Texas,geographic
+714,California,geographic
+715,Wisconsin,geographic
+716,New York,geographic
+717,Pennsylvania,geographic
+718,New York,geographic
+719,Colorado,geographic
+720,Colorado,geographic
+724,Pennsylvania,geographic
+725,Nevada,geographic
+726,Texas,geographic
+727,Florida,geographic
+728,Florida,geographic
+729,Tennessee,geographic
+730,Illinois,geographic
+731,Tennessee,geographic
+732,New Jersey,geographic
+734,Michigan,geographic
+737,Texas,geographic
+738,California,geographic
+740,Ohio,geographic
+743,North Carolina,geographic
+747,California,geographic
+748,Colorado,geographic
+754,Florida,geographic
+757,Virginia,geographic
+760,California,geographic
+762,Georgia,geographic
+763,Minnesota,geographic
+765,Indiana,geographic
+769,Mississippi,geographic
+770,Georgia,geographic
+771,District of Columbia,geographic
+772,Florida,geographic
+773,Illinois,geographic
+774,Massachusetts,geographic
+775,Nevada,geographic
+779,Illinois,geographic
+781,Massachusetts,geographic
+785,Kansas,geographic
+786,Florida,geographic
+787,Puerto Rico,geographic
+800,Toll-free,toll-free
+801,Utah,geographic
+802,Vermont,geographic
+803,South Carolina,geographic
+804,Virginia,geographic
+805,California,geographic
+806,Texas,geographic
+808,Hawaii,geographic
+810,Michigan,geographic
+812,Indiana,geographic
+813,Florida,geographic
+814,Pennsylvania,geographic
+815,Illinois,geographic
+816,Missouri,geographic
+817,Texas,geographic
+818,California,geographic
+820,California,geographic
+821,South Carolina,geographic
+826,Virginia,geographic
+828,North Carolina,geographic
+830,Texas,geographic
+831,California,geographic
+832,Texas,geographic
+833,Toll-free,toll-free
+835,Pennsylvania,geographic
+837,California,geographic
+838,New York,geographic
+839,South Carolina,geographic
+840,California,geographic
+843,South Carolina,geographic
+844,Toll-free,toll-free
+845,New York,geographic
+847,Illinois,geographic
+848,New Jersey,geographic
+850,Florida,geographic
+854,South Carolina,geographic
+855,Toll-free,toll-free
+856,New Jersey,geographic
+857,Massachusetts,geographic
+858,California,geographic
+859,Kentucky,geographic
+860,Connecticut,geographic
+861,Illinois,geographic
+862,New Jersey,geographic
+863,Florida,geographic
+864,South Carolina,geographic
+865,Tennessee,geographic
+866,Toll-free,toll-free
+870,Arkansas,geographic
+872,Illinois,geographic
+877,Toll-free,toll-free
+878,Pennsylvania,geographic
+888,Toll-free,toll-free
+901,Tennessee,geographic
+903,Texas,geographic
+904,Florida,geographic
+906,Michigan,geographic
+907,Alaska,geographic
+908,New Jersey,geographic
+909,California,geographic
+910,North Carolina,geographic
+912,Georgia,geographic
+913,Kansas,geographic
+914,New York,geographic
+915,Texas,geographic
+916,California,geographic
+917,New York,geographic
+918,Oklahoma,geographic
+919,North Carolina,geographic
+920,Wisconsin,geographic
+924,Minnesota,geographic
+925,California,geographic
+928,Arizona,geographic
+929,New York,geographic
+930,Indiana,geographic
+931,Tennessee,geographic
+934,New York,geographic
+936,Texas,geographic
+937,Ohio,geographic
+938,Alabama,geographic
+939,Puerto Rico,geographic
+940,Texas,geographic
+941,Florida,geographic
+943,Georgia,geographic
+945,Texas,geographic
+947,Michigan,geographic
+948,Virginia,geographic
+949,California,geographic
+951,California,geographic
+952,Minnesota,geographic
+954,Florida,geographic
+956,Texas,geographic
+959,Connecticut,geographic
+970,Colorado,geographic
+971,Oregon,geographic
+972,Texas,geographic
+973,New Jersey,geographic
+975,Missouri,geographic
+978,Massachusetts,geographic
+979,Texas,geographic
+980,North Carolina,geographic
+983,Colorado,geographic
+984,North Carolina,geographic
+985,Louisiana,geographic
+986,Idaho,geographic
+989,Michigan,geographic

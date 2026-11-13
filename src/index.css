@@ -1,0 +1,3 @@
+/* Tailwind's entry point. This is the only line of CSS in the project:
+   all styling is done with Tailwind utility classes in the components. */
+@import "tailwindcss";
