@@ -104,6 +104,30 @@ def is_first_name(word):
     return word in FIRST_NAMES or plain in FIRST_NAMES or first_part in FIRST_NAMES
 
 
+def is_surname(word):
+    """
+    True if the word is in the Census surname list.
+    The Census list stores "O'Brien" as "obrien" and has no hyphenated names,
+    so we also try the word without apostrophes, and each part of a hyphenated
+    name ("smith-jones" counts if "smith" or "jones" is a surname).
+    """
+    plain = re.sub(r"['’]", "", word)
+    parts = plain.split("-")
+    return plain in SURNAMES or any(part in SURNAMES for part in parts)
+
+
+def last_word_is_surname(value):
+    """
+    True if the last word of a full name is a known surname
+    ("Emily Carter" -> "carter" -> yes; "Austin Lamp" -> "lamp" -> no).
+    A trailing initial with a dot ("Emily J.") is not a surname.
+    """
+    words = name_words(value)
+    if not words or len(words) < 2:
+        return False
+    return is_surname(words[-1])
+
+
 def check_name(value):
     """
     Return (kind, note) for one value. kind is one of:

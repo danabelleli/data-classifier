@@ -233,6 +233,15 @@ def city_candidate(column, state_column):
     """
     City: value rule + (city, state) pairs with the state column, if there is one.
     Relational support: at least 50% of rows are real (city, state) pairs.
+
+    City REQUIRES supporting evidence: the values must match (same thresholds
+    as every class) AND the column must have a city header keyword or 50%+
+    real city/state pairs. Without it the column is Not classified.
+    Why: many products, brands and collections are named after US cities. A
+    "collection" column of product lines (Austin, Boston, Denver, Madison) was
+    classified as City on values alone. A city word by itself cannot tell a
+    place from a product name; a city header or a matching state in the same
+    row can.
     """
     results = {}
     pairs = 0
@@ -252,8 +261,23 @@ def city_candidate(column, state_column):
         }
     else:
         relational = not_used("No state column in the file to pair cities with")
-    return make_candidate(CITY, column, results, rules_city.HEADER_KEYWORDS, "city",
-                          "are US cities", relational=relational)
+    candidate = make_candidate(CITY, column, results, rules_city.HEADER_KEYWORDS, "city",
+                               "are US cities", relational=relational)
+
+    has_support = candidate["header_keyword"] is not None or relational["support"]
+    if candidate["passes"] and not has_support:
+        # The values are enough, but City also needs support: block it and say why.
+        candidate["passes"] = False
+        if state_column:
+            pairs_text = f"only {pairs} of {total} rows pair with a state column"
+        else:
+            pairs_text = "the file has no state column to pair with"
+        candidate["blocked_note"] = (
+            f"{candidate['matched']} of {total} values are US cities "
+            f"({format_percent(candidate['percent'])}), but city needs a city header or "
+            f"city/state pairs: \"{column['name']}\" has no city keyword and {pairs_text}."
+        )
+    return candidate
 
 
 def email_cross_reference(column, email_column):
@@ -294,8 +318,23 @@ def name_candidate(column, email_column):
     File-level people data (another column with SSN, email, phone or date of
     birth) is NOT support here: it says the file is about people, not that this
     column holds their names.
+
+    Full names also need real surnames: at least 50% of the column's full-name
+    values must end with a word from the Census surname list. If not, none of
+    the full names count. This applies even when the header is a name keyword.
+    Why: a first-name start is not enough. A "product_name" column (Austin Lamp,
+    Boston Table, Denver Sofa) was classified as Person Name because Austin,
+    Boston and Denver are in the SSA first-name list. Real people's last words
+    are surnames; product words (Lamp, Table, Sofa) are not. The check is done
+    for the column as a whole (50%), not per value, so a few rare surnames
+    missing from the Census list do not break a real name column.
     """
     kinds = {i: rules_name.check_name(v) for i, v in column["non_empty"]}
+
+    # Column-level surname check on the full-name values (see docstring).
+    full_values = [v for i, v in column["non_empty"] if kinds[i][0] == "full"]
+    surname_hits = sum(1 for v in full_values if rules_name.last_word_is_surname(v))
+    full_names_allowed = bool(full_values) and surname_hits / len(full_values) >= 0.5
     relational = email_cross_reference(column, email_column)
     has_header = find_keyword(column["name"], rules_name.HEADER_KEYWORDS) is not None
     single_words_allowed = has_header or relational["support"]
@@ -306,7 +345,10 @@ def name_candidate(column, email_column):
     # unpacked in the loop header like JS: for (const [i, [kind, note]] of ...)
     for i, (kind, note) in kinds.items():
         if kind == "full":
-            results[i] = (True, note)
+            if full_names_allowed:
+                results[i] = (True, note)
+            else:
+                results[i] = (False, "No match · full names need known surnames as last words")
         elif kind in ("first", "surname"):
             if single_words_allowed:
                 results[i] = (True, "Match · first name" if kind == "first" else "Match · surname")
@@ -320,14 +362,28 @@ def name_candidate(column, email_column):
         predicate = "are names (full names, or single first names or surnames)"
     else:
         predicate = "are full names starting with a known first name"
+    surname_text = ""
+    if full_values:
+        surname_share = 100 * surname_hits / len(full_values)
+        surname_text = (f"{surname_hits} of {len(full_values)} last words are known surnames "
+                        f"({format_percent(surname_share)})")
     candidate = make_candidate(NAME, column, results, rules_name.HEADER_KEYWORDS, "name",
-                               predicate, relational=relational)
+                               predicate, detail=surname_text, relational=relational)
+
+    notes = []
+    if full_values and not full_names_allowed:
+        notes.append(
+            f"{len(full_values)} of {candidate['total']} values start with a known first name, "
+            f"but only {surname_text}; full names need at least 50%."
+        )
     if single_words_skipped:
-        candidate["uncounted_note"] = (
+        notes.append(
             f"{count_of(single_words_skipped, candidate['total'])} "
             f"{'a single word' if single_words_skipped == 1 else 'single words'}; single words "
             "need a name header or an email match, and this column has neither."
         )
+    if notes:
+        candidate["uncounted_note"] = " ".join(notes)
     return candidate
 
 
@@ -423,7 +479,10 @@ def values_evidence(candidate):
     text = f"{candidate['matched']} of {candidate['total']} {candidate['predicate']}"
     if candidate["detail"]:
         text += f" ({candidate['detail']})"
-    return evidence("Values", "Yes" if candidate["passes"] else "No", text)
+    # A blocked candidate's values DID meet the threshold (only support was
+    # missing), so its Values row is a "Yes".
+    values_ok = candidate["passes"] or bool(candidate.get("blocked_note"))
+    return evidence("Values", "Yes" if values_ok else "No", text)
 
 
 def support_sentences(candidate, header):
@@ -573,9 +632,13 @@ def build_result(column, winner, conflict_note, context):
         })
         return base
 
-    reason = (f"Closest class: {closest['data_class']}. {values_sentence(closest)[:-1]}, "
-              f"below the {closest['threshold']}% needed. ")
-    reason += " ".join(support_sentences(closest, header))
+    if closest.get("blocked_note"):
+        # Values met the threshold but required support was missing (City).
+        reason = f"Closest class: {closest['data_class']}. {closest['blocked_note']}"
+    else:
+        reason = (f"Closest class: {closest['data_class']}. {values_sentence(closest)[:-1]}, "
+                  f"below the {closest['threshold']}% needed. ")
+        reason += " ".join(support_sentences(closest, header))
     if closest.get("uncounted_note"):  # .get returns None instead of raising if the key is missing
         reason += " " + closest["uncounted_note"]
     base.update({
