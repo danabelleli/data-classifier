@@ -160,24 +160,29 @@ def ssn_candidate(column):
 
 def phone_candidate(column):
     """
-    Phone: US format + real area code. The detail names the most common area code.
+    Phone: US numbers (US format + real area code) and international numbers
+    ("+" + ITU country code, 8-15 digits). The detail says how many of each
+    were found, and names the most common US area code.
     Raw digit values (2125550101) only count when the header matches a phone
     keyword (see rules_phone.check_phone for why).
     """
     raw_allowed = find_keyword(column["name"], rules_phone.HEADER_KEYWORDS) is not None
     results = {}
     area_codes = Counter()
+    kinds = Counter()  # how many matches were US and how many international
     for i, v in column["non_empty"]:
-        matched, note, area_code = rules_phone.check_phone(v, raw_allowed)
+        matched, note, area_code, kind = rules_phone.check_any_phone(v, raw_allowed)
         results[i] = (matched, note)
         if area_code:
             area_codes[area_code] += 1
-    detail = ""
+        if kind:
+            kinds[kind] += 1
+    detail = f"{kinds['us']} US, {kinds['international']} international with a valid country code"
     if area_codes:
         top_code, _ = area_codes.most_common(1)[0]
-        detail = f"most common area code {top_code} = {rules_phone.region_of(top_code)}"
+        detail += f"; most common area code {top_code} = {rules_phone.region_of(top_code)}"
     candidate = make_candidate(PHONE, column, results, rules_phone.HEADER_KEYWORDS, "phone",
-                               "match a US phone format with a real area code", detail)
+                               "are phone numbers", detail)
     # Explain raw values that were valid phone digits but not counted.
     raw_count = sum(1 for _, note in results.values() if note == rules_phone.RAW_DIGITS_NOTE)
     if raw_count:

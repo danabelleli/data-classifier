@@ -17,9 +17,13 @@ The folder is expected to contain (any missing file is skipped with a warning):
     Gaz_places_national.txt         Census 2010 Gazetteer, Places
     Names_2010Census.csv            Census 2010 surnames
     ssa_names/yob*.txt              SSA national baby names, one file per year
+    itu_e164_country_codes.txt      ITU-T E.164 assigned country codes: the text
+                                    of the ITU PDF (T-SP-E.164D-2016-PDF-E.pdf),
+                                    extracted with any PDF-to-text tool
 """
 
 import csv
+import re
 import sys
 from pathlib import Path
 
@@ -251,6 +255,73 @@ def build_first_names(raw_dir):
     print(f"first_names.txt: {len(names)} names from {len(year_files)} year files")
 
 
+def clean_itu_name(text):
+    """
+    Tidy one country name from the ITU PDF text.
+    The PDF text has doubled spaces ("Cabo  Verde") and stray spaces before
+    hyphens ("Guinea -Bissau"), and each line ends with note letters that refer
+    to footnotes in the PDF ("Kazakhstan (Republic of)  b", "Kosovo * r").
+    Those notes are not part of the name, so they are removed.
+    """
+    text = re.sub(r"\s+", " ", text).replace(" -", "-").strip()
+    # Remove trailing footnote markers: single lowercase letters, commas and "*".
+    return re.sub(r"(\s+(\*|[a-z]\b)(\s*,\s*[a-z]\b)*)+$", "", text).strip()
+
+
+def build_country_codes(raw_dir):
+    """
+    Write data/country_codes.csv: every assigned ITU-T E.164 country calling
+    code, with the countries or services that use it.
+
+    Source: "List of ITU-T Recommendation E.164 assigned country codes", the
+    complement to ITU-T E.164 published by the ITU (PDF). We read the text of
+    the PDF's numerical-order list (pages 3-9; the alphabetical list after it
+    repeats the same codes).
+    Kept: assigned codes, including global services such as +800 (International
+    Freephone) and +881 (satellite phones), because they are real dialable codes.
+    Skipped: "Spare code" and "Reserved ..." entries, which no number can use.
+    One code can serve several places (+1 is the US, Canada and the Caribbean;
+    +7 is Russia and Kazakhstan), so their names are joined with "; ".
+    """
+    source = raw_dir / "itu_e164_country_codes.txt"
+    if not source.exists():
+        print("WARNING: itu_e164_country_codes.txt not found, skipping country_codes.csv")
+        return
+
+    lines = source.read_text(encoding="utf-8").splitlines()
+    # The numerical list sits between the first "numerical order" page header
+    # and the first "alphabetical order" page header.
+    start = next(i for i, line in enumerate(lines) if "numerical order" in line and "Annex" in line)
+    end = next(i for i, line in enumerate(lines) if "alphabetical order" in line and "Annex" in line)
+
+    names_by_code = {}  # {"44": ["United Kingdom of Great Britain and Northern Ireland"], ...}
+    last_code = None
+    for line in lines[start:end]:
+        if not line.strip() or line.startswith("=====") or "Annex" in line or line.startswith("Country code"):
+            continue
+        entry = re.match(r"^\s*(\d{1,3})\s+(.+)$", line)
+        if entry:
+            code, name = entry.groups()
+            last_code = code
+            names_by_code.setdefault(code, []).append(name)
+        elif last_code:
+            # A name that did not fit on one line continues on the next one.
+            names_by_code[last_code][-1] += " " + line
+
+    rows = []
+    for code, names in names_by_code.items():
+        assigned = [clean_itu_name(name) for name in names
+                    if not name.strip().startswith(("Spare", "Reserved"))]
+        if assigned:
+            rows.append([code, "; ".join(assigned)])
+
+    with open(DATA_DIR / "country_codes.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["country_code", "name"])
+        writer.writerows(sorted(rows, key=lambda row: row[0]))
+    print(f"country_codes.csv: {len(rows)} codes")
+
+
 def main():
     """Run every builder. sys.argv is the list of command-line words, like process.argv."""
     if len(sys.argv) != 2:
@@ -263,6 +334,7 @@ def main():
     build_places(raw_dir, states)
     build_surnames(raw_dir)
     build_first_names(raw_dir)
+    build_country_codes(raw_dir)
 
 
 # This block only runs when the file is executed directly, not when imported.
