@@ -77,3 +77,37 @@ def check_ssn(value, raw_allowed):
     if style == "no separators" and not raw_allowed:
         return False, RAW_DIGITS_NOTE
     return True, f"Match · {style}"
+
+
+# ---------------------------------------------------------------------------
+# Recovering SSNs that lost their leading zeros
+# ---------------------------------------------------------------------------
+# Real SSNs can start with 0 or 00 (area numbers 001-099 are valid; only 000
+# is never issued). When a spreadsheet stores SSNs as numbers, it drops those
+# zeros: 012345678 becomes 12345678 (8 digits), 001234567 becomes 1234567
+# (7 digits). check_restored_ssn puts the zeros back. It is only used when
+# decide.ssn_candidate has already confirmed the column is an SSN column
+# (SSN header + at least 50% valid 9-digit SSNs); on its own, a 7- or 8-digit
+# number is never treated as an SSN.
+
+# Exactly 7 or 8 digits, nothing else.
+SHORT_DIGITS = re.compile(r"\d{7,8}")
+
+
+def check_restored_ssn(value):
+    """
+    Restore the leading zeros of a 7- or 8-digit value and validate it.
+    Returns None if the value is not 7 or 8 digits; otherwise (matched, note).
+
+    Python note: "1234567".zfill(9) pads with zeros on the left up to 9
+    characters ("001234567"), like "1234567".padStart(9, "0") in JS.
+    """
+    if not SHORT_DIGITS.fullmatch(value):
+        return None
+    restored = value.zfill(9)
+    zeros = "zero" if len(value) == 8 else "zeros"
+    # The same SSA validation as every other SSN value.
+    problem = validation_problem(restored[:3], restored[3:5], restored[5:])
+    if problem:
+        return False, f"No match · leading {zeros} restored ({restored}), but {problem}"
+    return True, f"Match · leading {zeros} restored: {restored}"

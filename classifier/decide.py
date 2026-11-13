@@ -149,12 +149,39 @@ def ssn_candidate(column):
     SSN: pattern + validation. The detail counts the separator styles found.
     Raw 9-digit values (no dashes or spaces) only count when the header matches
     an SSN keyword (see rules_ssn.check_ssn for why).
+    7- and 8-digit values can be recovered as SSNs that lost their leading
+    zeros, only in a column that is clearly SSNs (see below).
     """
     raw_allowed = find_keyword(column["name"], rules_ssn.HEADER_KEYWORDS) is not None
     results = {i: rules_ssn.check_ssn(v, raw_allowed) for i, v in column["non_empty"]}
     # Counter counts how often each item appears: Counter(["a", "a", "b"]) -> {"a": 2, "b": 1}
     styles = Counter(note.split(" · ")[1] for ok, note in results.values() if ok)
     detail = ", ".join(f"{count} with {style}" for style, count in styles.most_common())
+
+    # Leading-zero recovery (see rules_ssn.check_restored_ssn). Short 7- or
+    # 8-digit values get their zeros back ONLY when the column is clearly an
+    # SSN column: it has an SSN header AND at least 50% of its non-empty values
+    # are already valid 9-digit SSNs before any recovery. Then the short values
+    # most likely are SSNs that a spreadsheet stored as numbers.
+    # Why both conditions: without them, any 7- or 8-digit ID column (order
+    # numbers, account numbers) could be turned into "SSNs" by adding zeros.
+    valid_before = sum(1 for ok, _ in results.values() if ok)
+    total = len(results)
+    restored = 0
+    if raw_allowed and total and valid_before / total >= 0.5:
+        for i, v in column["non_empty"]:
+            if results[i][0]:
+                continue  # already a valid SSN
+            recovered = rules_ssn.check_restored_ssn(v)
+            if recovered is not None:
+                results[i] = recovered
+                if recovered[0]:
+                    restored += 1
+    if restored:
+        recovery_text = (f"{restored} had leading zeros restored: {valid_before} of {total} "
+                         "were already valid 9-digit SSNs")
+        detail = f"{detail}; {recovery_text}" if detail else recovery_text
+
     candidate = make_candidate(SSN, column, results, rules_ssn.HEADER_KEYWORDS, "SSN",
                                "match the SSN pattern and pass SSN validation", detail)
     # Explain raw values that were valid SSN digits but not counted.

@@ -49,6 +49,7 @@ Every decision is made by explainable rules: regular expressions, validation, an
 - Must pass SSA rules: never starts with `000`, `666` or `900`–`999`; never `00` in the middle; never `0000` at the end.
 - Formatted values (dashes or spaces) count on their own.
 - Raw 9 digits count only with an SSN header.
+- SSNs can start with 0 or 00, and spreadsheets drop those zeros when SSNs are stored as numbers (7 or 8 digits left). With an SSN header, if at least 50% of values are already valid 9-digit SSNs, the zeros are added back and the normal validation applies.
 - Header keywords: `ssn`, `social`, `social_security`, `national_id`, `tax_id`.
 
 ### Phone Number
@@ -111,7 +112,7 @@ Tested on 14 synthetic files (HR, e-commerce, travel, healthcare, data lake, con
 | Class | Limitation |
 |---|---|
 | Email | Emails inside free text (a notes column) are not detected, by design. |
-| SSN | Non-US 9-digit IDs (Israeli, Dutch) under a `national_id` header can be labeled SSN. Raw 9-digit SSNs without an SSN header are missed. SSNs that lost a leading zero (8 digits) are missed. |
+| SSN | Non-US 9-digit IDs (Israeli, Dutch) under a `national_id` header can be labeled SSN. Raw 9-digit SSNs without an SSN header are missed. SSNs that lost leading zeros are only recovered when the column has an SSN header and at least 50% of values are already valid 9-digit SSNs. |
 | Phone | Raw digits without a phone header are missed. International numbers without `+` are missed. The area code and country code lists go out of date over time. |
 | Date of Birth | A people file with `hire_date` and `termination_date` but no birth date: `hire_date` is the earliest, so it can be called Date of Birth. A single unlabeled birth-date column is missed. Dates with a time (`1990-03-14 00:00:00`) are missed. |
 | City | A city column with a vague header and no state column is missed. Non-US cities are not supported. Misspellings are missed. |
