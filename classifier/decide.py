@@ -30,7 +30,14 @@ CITY = "City"
 # Tie-break order when two classes are equally good (spec 3.5, step 3).
 PRIORITY = [SSN, PHONE, EMAIL, DOB, NAME, CITY]
 
-MIN_VALUES = 3            # fewer non-empty values than this -> Not classified
+# Minimum non-empty values a column needs to be classified. Only an empty
+# column (0 values) is skipped; 1-2 values use the same 80% rule as 3-9 values.
+# Why there is no longer a minimum of 3: it was meant to stop coincidental
+# matches in tiny columns, but the ambiguous cases (raw digits, single-word
+# names, City, Date of Birth) already require supporting evidence. So the
+# minimum mostly caused false negatives: a 2-row file with name, email, phone
+# and ssn columns had every column Not classified.
+MIN_VALUES = 1
 SMALL_COLUMN = 10         # below this many values the threshold is 80%, else 90%
 CLOSE_POINTS = 5          # "within 5 percentage points" for conflict resolution
 MAX_VALUES_SHOWN = 20     # how many values the UI lists per column (OPEN: Dana to decide)
@@ -579,9 +586,10 @@ def build_result(column, winner, conflict_note, context):
 
     count = len(column["non_empty"])
     if count < MIN_VALUES:
-        text = f"Only {count} non-empty value{'s' if count != 1 else ''}; at least {MIN_VALUES} are needed"
+        # With MIN_VALUES = 1 this only happens for an empty column.
+        text = "0 non-empty values; the column is empty"
         base.update({
-            "reason": f"Not enough data: {text[0].lower() + text[1:]} to classify a column.",
+            "reason": "Not enough data: the column has no non-empty values to classify.",
             "evidence": [evidence("Values", "No", text), evidence("Header", "Not used", ""),
                          evidence("Other columns", "Not used", "")],
             "values": value_rows(column, None),
@@ -682,7 +690,7 @@ def classify_columns(headers, rows):
               then DOB Path 2. Conflict resolution last.
     """
     columns = make_columns(headers, rows)
-    # Columns with too few values are never classified, so they are skipped
+    # Empty columns are never classified, so they are skipped
     # (and cannot act as a state, email or date column for other columns).
     usable = [c for c in columns if len(c["non_empty"]) >= MIN_VALUES]
 
