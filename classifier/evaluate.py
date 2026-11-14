@@ -110,6 +110,11 @@ def match_answers(column_names, answers):
     """
     problems = []
 
+    # column_names are the unique labels from classify_file (decided with Dana):
+    # a repeated header shows up as "name" and "name (2)", and a blank one as
+    # "(no header, column 5)", so the answers CSV refers to columns by those
+    # labels. This check therefore no longer fires for repeated headers; it is
+    # kept as a safety net in case two labels are ever the same.
     # Counter counts how often each name appears: Counter(["a", "a"]) -> {"a": 2}
     for name, count in Counter(column_names).items():
         if count > 1:

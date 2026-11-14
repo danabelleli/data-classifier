@@ -107,7 +107,7 @@ def make_candidate(data_class, column, results, keywords, keyword_label, predica
     function f(detail = "", relational = null).
     """
     relational = relational or not_used()
-    header_keyword = find_keyword(column["name"], keywords)
+    header_keyword = find_keyword(column["header"], keywords)
     # sum(1 for ...) counts the items that pass the check, like
     # Object.values(results).filter(([ok]) => ok).length in JS.
     matched = sum(1 for ok, _ in results.values() if ok)
@@ -152,7 +152,7 @@ def ssn_candidate(column):
     7- and 8-digit values can be recovered as SSNs that lost their leading
     zeros, only in a column that is clearly SSNs (see below).
     """
-    raw_allowed = find_keyword(column["name"], rules_ssn.HEADER_KEYWORDS) is not None
+    raw_allowed = find_keyword(column["header"], rules_ssn.HEADER_KEYWORDS) is not None
     results = {i: rules_ssn.check_ssn(v, raw_allowed) for i, v in column["non_empty"]}
     # Counter counts how often each item appears: Counter(["a", "a", "b"]) -> {"a": 2, "b": 1}
     styles = Counter(note.split(" · ")[1] for ok, note in results.values() if ok)
@@ -202,7 +202,7 @@ def phone_candidate(column):
     Raw digit values (2125550101) only count when the header matches a phone
     keyword (see rules_phone.check_phone for why).
     """
-    raw_allowed = find_keyword(column["name"], rules_phone.HEADER_KEYWORDS) is not None
+    raw_allowed = find_keyword(column["header"], rules_phone.HEADER_KEYWORDS) is not None
     results = {}
     area_codes = Counter()
     kinds = Counter()  # how many matches were US and how many international
@@ -373,7 +373,7 @@ def person_evidence(column, relational, person_facts):
         found.append(f"gender column \"{person_facts['gender'][0]}\" in the file")
     if relational["support"]:
         found.append("names match the email in the same row")
-    if find_keyword(column["name"], rules_name.PERSON_HEADER_KEYWORDS):
+    if find_keyword(column["header"], rules_name.PERSON_HEADER_KEYWORDS):
         found.append(f"\"{column['name']}\" is a person-name header")
     return found
 
@@ -423,7 +423,7 @@ def name_candidate(column, email_column, person_facts):
     surname_hits = sum(1 for v in full_values if rules_name.last_word_is_surname(v))
     full_names_allowed = bool(full_values) and surname_hits / len(full_values) >= 0.5
     relational = email_cross_reference(column, email_column)
-    has_header = find_keyword(column["name"], rules_name.HEADER_KEYWORDS) is not None
+    has_header = find_keyword(column["header"], rules_name.HEADER_KEYWORDS) is not None
     single_words_allowed = has_header or relational["support"]
 
     results = {}
@@ -760,24 +760,33 @@ def build_result(column, winner, conflict_note, context):
 # The whole file
 # ---------------------------------------------------------------------------
 
-def make_columns(headers, rows):
+def make_columns(headers, labels, rows):
     """
     Turn the header list and the rows (lists of already-cleaned strings) into
-    one column dict per header. Blank headers get a placeholder name.
+    one column dict per header.
+
+    Each column keeps two names:
+      "header"  the original header text from the file. The header-keyword rules
+                read this one, so a relabeled column ("name (2)") is judged
+                exactly as before.
+      "name"    the unique display label (see cleaning.unique_labels): "name (2)"
+                for a repeated header, "(no header, column 5)" for a blank one.
+                This is what the UI, the reasons, the export and Test results show.
     """
     columns = []
     for index, header in enumerate(headers):
         values = [row[index] if index < len(row) else "" for row in rows]
         columns.append({
             "index": index,  # position in the file; headers can repeat, positions cannot
-            "name": header or f"column_{index + 1}",
+            "header": header,
+            "name": labels[index],
             "values": values,
             "non_empty": non_empty(values),
         })
     return columns
 
 
-def classify_columns(headers, rows):
+def classify_columns(headers, labels, rows):
     """
     Classify every column. Returns a list of result dicts (spec 6, "columns").
 
@@ -786,7 +795,7 @@ def classify_columns(headers, rows):
       Pass 2  City (with state pairs), Person Name (with email cross-reference),
               then DOB Path 2. Conflict resolution last.
     """
-    columns = make_columns(headers, rows)
+    columns = make_columns(headers, labels, rows)
     # Empty columns are never classified, so they are skipped
     # (and cannot act as a state, email or date column for other columns).
     usable = [c for c in columns if len(c["non_empty"]) >= MIN_VALUES]
@@ -809,7 +818,7 @@ def classify_columns(headers, rows):
         "ssn": [c["name"] for c in usable if passes(c, SSN)],
         "dob": [c["name"] for c in usable if passes(c, DOB)],
         "gender": [c["name"] for c in columns
-                   if find_keyword(c["name"], rules_name.GENDER_HEADER_KEYWORDS)],
+                   if find_keyword(c["header"], rules_name.GENDER_HEADER_KEYWORDS)],
     }
 
     # ---- Pass 2: City and Person Name ----
@@ -875,11 +884,13 @@ def classify_file(data, file_name):
     """
     Classify an uploaded CSV file (raw bytes). Returns the JSON-ready dict of spec 6.
     This is the one function the API calls.
+    Raises cleaning.CsvReadError (with a message for the user) when the file is
+    empty, has only a header row, or isn't a readable CSV.
     """
-    headers, rows = read_csv(data)
+    headers, labels, rows = read_csv(data)
     return fit_values_to_size({
         "file_name": file_name,
         "row_count": len(rows),
         "column_count": len(headers),
-        "columns": classify_columns(headers, rows),
+        "columns": classify_columns(headers, labels, rows),
     })

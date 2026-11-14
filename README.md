@@ -22,7 +22,7 @@ Every decision is made by explainable rules: regular expressions, validation, an
    `column,correct_class` (for example `full_name,Person Name` or `title,Not classified`)
 3. Click **Run tests** to see true positives, false positives, false negatives, precision and recall per class, plus every mistake with the app's reason.
 
-**Limits:** uploads up to about 4.5 MB (Vercel); the first 10,000 rows are analyzed. The value list shows up to 1,000 values per column (fewer for very wide files, to stay under Vercel's response limit); the label always shows how many are shown out of the total. Uploaded files are processed in memory and never saved.
+**Limits:** uploads up to about 4.5 MB (Vercel); the first 10,000 rows are analyzed. The value list shows up to 1,000 values per column (fewer for very wide files, to stay under Vercel's response limit); the label always shows how many are shown out of the total. Uploaded files are processed in memory and never saved. Files can be comma, semicolon, tab or pipe separated.
 
 **Run locally (optional):** `npm install`, then `python3 dev_server.py` and `npm run dev` in two terminals, and open http://localhost:5173.
 
@@ -113,11 +113,12 @@ Tested on 14 synthetic files (HR, e-commerce, travel, healthcare, data lake, con
 |---|---|
 | Email | Emails inside free text (a notes column) are not detected, by design. |
 | SSN | Non-US 9-digit IDs (Israeli, Dutch) under a `national_id` header can be labeled SSN. Raw 9-digit SSNs without an SSN header are missed. SSNs that lost leading zeros are only recovered when the column has an SSN header and at least 50% of values are already valid 9-digit SSNs. |
-| Phone | Raw digits without a phone header are missed. International numbers without `+` are missed. The area code and country code lists go out of date over time. |
-| Date of Birth | A people file with `hire_date` and `termination_date` but no birth date: `hire_date` is the earliest, so it can be called Date of Birth. A single unlabeled birth-date column is missed. Dates with a time (`1990-03-14 00:00:00`) are missed. |
-| City | A city column with a vague header and no state column is missed. Non-US cities are not supported. Misspellings are missed. |
-| Person Name | Real names with a generic header (`customer_name`) and no person evidence are missed. In a file that has SSN, birth-date or gender columns, a name-shaped non-person column (brands) can still pass. Rare first names may be missing from the SSA list. |
+| Phone | Raw digits without a phone header are missed. International numbers without `+` are missed. The area code and country code lists go out of date over time. Numbers with an extension (212-555-0101 x204, ext. 3) are not matched. |
+| Date of Birth | A people file with `hire_date` and `termination_date` but no birth date: `hire_date` is the earliest, so it can be called Date of Birth. A single unlabeled birth-date column is missed. Dates with a time (`1990-03-14 00:00:00`) are missed. Dates with dots or no separators (14.03.1990, 19900314) are not recognized. |
+| City | A city column with a vague header and no state column is missed. Non-US cities are not supported. Misspellings are missed. Nicknames and variants (NYC, New York City, SF) are not matched. |
+| Person Name | Real names with a generic header (`customer_name`) and no person evidence are missed. In a file that has SSN, birth-date or gender columns, a name-shaped non-person column (brands) can still pass. Rare first names may be missing from the SSA list. Names longer than 4 words (Juan Carlos de la Cruz) are not matched. |
 | State guard | A first-name column full of "Virginia" or "Georgia" would be treated as a state column. |
+| Mixed columns | A column mixing two classes (emails and phones in one 'contact' column) usually reaches neither threshold and is Not classified. |
 
 ## Next steps with more time
 

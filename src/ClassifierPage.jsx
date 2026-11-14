@@ -148,8 +148,10 @@ export default function ClassifierPage({ onClassified }) {
     const file = event.target.files[0]
     event.target.value = '' // allow choosing the same file again
     if (!file) return
+    // Checked in the browser first so a too-big file never has to be sent.
+    // Same wording as the server's check (classifier/upload.py).
     if (file.size > MAX_UPLOAD_BYTES) {
-      setError('This file is larger than about 4.5 MB, the upload limit. Try a smaller file.')
+      setError('This file is larger than 4.5 MB, the upload limit.')
       return
     }
     setError('')
@@ -158,7 +160,13 @@ export default function ClassifierPage({ onClassified }) {
       const form = new FormData()
       form.append('file', file)
       const response = await fetch('/api/classify', { method: 'POST', body: form })
-      const data = await response.json().catch(() => ({ error: `The server answered with status ${response.status}.` }))
+      // On Vercel, a request over the limit is rejected before it reaches our
+      // code, so the answer is not our JSON. Status 413 ("too large") is turned
+      // into the same size message as above instead of a technical one.
+      const fallback = response.status === 413
+        ? 'This file is larger than 4.5 MB, the upload limit.'
+        : `The server answered with status ${response.status}.`
+      const data = await response.json().catch(() => ({ error: fallback }))
       if (!response.ok) throw new Error(data.error || 'Something went wrong.')
       setResult(data)
       onClassified(file)

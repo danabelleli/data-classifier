@@ -14,6 +14,7 @@ from pathlib import Path
 # Make the project root importable (same as api/classify.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from classifier.cleaning import CsvReadError  # noqa: E402
 from classifier.evaluate import TestSetupError, evaluate_files  # noqa: E402
 from classifier.upload import JsonHandler  # noqa: E402
 
@@ -39,6 +40,11 @@ class handler(JsonHandler):
         except TestSetupError as error:
             # Expected problems (unmatched columns, unknown class names): list them all.
             self.send_json(400, {"error": str(error), "problems": error.problems})
+            return
+        except CsvReadError as error:
+            # The test CSV is empty, has only a header, or isn't a CSV: show the
+            # same plain message the Classifier tab shows for that file.
+            self.send_json(400, {"error": str(error)})
             return
         except Exception as error:  # a broken file should give a readable error, not a crash
             self.send_json(400, {"error": f"Could not read the files as CSV: {error}"})

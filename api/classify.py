@@ -17,7 +17,8 @@ from pathlib import Path
 # imports (similar to NODE_PATH).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from classifier.decide import classify_file  # noqa: E402  (import after the path fix)
+from classifier.cleaning import NOT_A_CSV, CsvReadError  # noqa: E402  (import after the path fix)
+from classifier.decide import classify_file  # noqa: E402
 from classifier.upload import JsonHandler  # noqa: E402
 
 
@@ -38,11 +39,15 @@ class handler(JsonHandler):
         file_name, data = uploads["file"]
         try:
             result = classify_file(data, file_name)
-        except Exception as error:  # a broken file should give a readable error, not a crash
-            self.send_json(400, {"error": f"Could not read this file as CSV: {error}"})
+        except CsvReadError as error:
+            # A known file problem (empty, only a header, not a CSV): its message
+            # is already written for the user, so it is shown as-is.
+            self.send_json(400, {"error": str(error)})
             return
-        if result["column_count"] == 0:
-            self.send_json(400, {"error": "The file is empty."})
+        except Exception:
+            # Anything unexpected still gets a plain message instead of a crash
+            # or a blank screen. The technical details are not shown to the user.
+            self.send_json(400, {"error": NOT_A_CSV})
             return
         self.send_json(200, result)
 

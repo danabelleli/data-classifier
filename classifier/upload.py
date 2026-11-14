@@ -62,7 +62,9 @@ class JsonHandler(BaseHTTPRequestHandler):
         """
         length = int(self.headers.get("Content-Length", 0))
         if length > MAX_UPLOAD_BYTES:
-            self.send_json(413, {"error": "Upload is too large. The limit is about 4.5 MB per request."})
+            # Same wording as the check in the browser (src/ClassifierPage.jsx), so
+            # the user sees one consistent message wherever the limit is caught.
+            self.send_json(413, {"error": "This file is larger than 4.5 MB, the upload limit."})
             return None
         body = self.rfile.read(length)
         return extract_files(self.headers.get("Content-Type", ""), body)
