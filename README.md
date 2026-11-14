@@ -26,6 +26,8 @@ Every decision is made by explainable rules: regular expressions, validation, an
 
 **Run locally (optional):** `npm install`, then `python3 dev_server.py` and `npm run dev` in two terminals, and open http://localhost:5173.
 
+**Command line:** from the project folder, run `python3 classify.py <path to a CSV file>` (for example `python3 classify.py ~/Downloads/sample_employees.csv`). The path can point to any CSV on your computer. It prints each column's class and reason; add `--json` for JSON.
+
 ## Approach
 
 - **Values are the main evidence.** Each non-empty value is checked against each class. A class needs **90%** of values to match (10+ values) or **80%** (1–9 values).
